@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin - Lịch đặt</title>
+  <style>
+    body { font-family: system-ui, Arial; margin:0; background:#f6f7fb; }
+    .wrap { max-width: 980px; margin: 24px auto; padding: 16px; }
+    .card { background:#fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+    h1 { margin:0 0 12px; font-size: 22px; }
+    input, button { padding: 10px 12px; border-radius: 10px; border: 1px solid #d6d9e0; font-size: 15px; }
+    button { border:0; cursor:pointer; font-weight:650; }
+    .btn { background:#111827; color:#fff; }
+    .muted { color:#6b7280; font-size: 13px; }
+    table { width:100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 10px; border-bottom: 1px solid #eef0f4; text-align:left; font-size: 14px; }
+    th { font-size: 13px; color:#374151; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    .ok { background:#ecfdf5; border:1px solid #10b98133; padding: 10px 12px; border-radius: 12px; margin-top:10px;}
+    .err { background:#fef2f2; border:1px solid #ef444433; padding: 10px 12px; border-radius: 12px; margin-top:10px;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Admin - Lịch đặt</h1>
+
+      <div class="row">
+        <input id="email" type="email" placeholder="Email admin (nhận link đăng nhập)" style="min-width:280px;">
+        <button id="login" class="btn">Gửi link đăng nhập</button>
+        <button id="logout">Đăng xuất</button>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <input id="date" type="date">
+        <button id="refresh" class="btn">Tải lịch</button>
+      </div>
+
+      <div id="msg"></div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Giờ</th>
+            <th>Dịch vụ</th>
+            <th>Số lượng</th>
+            <th>Khách</th>
+            <th>SĐT</th>
+            <th>Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+
+      <p class="muted">Chỉ tài khoản đã đăng nhập mới xem được họ tên/SĐT.</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
