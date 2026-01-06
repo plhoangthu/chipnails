@@ -19,10 +19,12 @@
     button { border: 0; cursor: pointer; font-weight: 650; padding: 12px; }
     .btn { background: #111827; color:#fff; }
     .muted { color:#6b7280; font-size: 13px; }
+
     .slots { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
-    .slot { padding: 10px; border-radius: 12px; border:1px solid #d6d9e0; background:#fff; cursor:pointer; text-align:center; }
+    .slot { padding: 10px; border-radius: 12px; border:1px solid #d6d9e0; background:#fff; cursor:pointer; text-align:center; user-select:none; }
     .slot[aria-disabled="true"]{ opacity:.45; cursor:not-allowed; }
     .slot.selected{ outline: 3px solid rgba(17,24,39,.2); border-color:#111827; }
+
     .ok { background:#ecfdf5; border:1px solid #10b98133; padding: 10px 12px; border-radius: 12px; }
     .err { background:#fef2f2; border:1px solid #ef444433; padding: 10px 12px; border-radius: 12px; }
     @media (max-width: 560px){ .row{ grid-template-columns: 1fr; } .slots{ grid-template-columns: repeat(3, 1fr);} }
