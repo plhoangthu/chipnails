@@ -1,30 +1,106 @@
-
-// app.js - Trang khách đặt lịch
+// app.js - Trang khách đặt lịch (HOÀN CHỈNH)
+// Fix lỗi null element: tự tìm đúng input/select theo placeholder/type.
 // Yêu cầu: Ẩn duration/price nếu NULL, vẫn cho chọn dịch vụ phụ.
-// Nếu khách không chọn giờ -> vẫn đặt được, start_at = 00:00 của ngày đó, note tự thêm "[CHƯA CHỌN GIỜ]".
+// Nếu khách không chọn giờ -> vẫn đặt được, start_at = 00:00 của ngày đó + note có marker.
 
-/* ==== 1) DÁN THÔNG TIN SUPABASE CỦA BẠN ==== */
+// ===================== 1) DÁN SUPABASE CỦA BẠN =====================
 const SUPABASE_URL = "https://zaqruavtxyjxwpfdoolo.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_sn53kFJuZmB2dHsBaM7DnQ_H5cQe5Pc";
 
-/* ==== 2) KHỞI TẠO SUPABASE ==== */
+// ===================== 2) KHỞI TẠO SUPABASE =====================
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* ==== 3) DOM IDs (nếu file HTML bạn đặt khác id thì đổi ở đây) ==== */
-const elService = document.getElementById("serviceSelect"); // <select>
-const elDate = document.getElementById("dateInput");        // <input type="date">
-const elTime = document.getElementById("timeSelect");       // <select> giờ (cho phép bỏ trống)
-const elFullName = document.getElementById("fullName");     // <input>
-const elPhone = document.getElementById("phone");           // <input>
-const elQty = document.getElementById("qty");               // <input type="number">
-const elNote = document.getElementById("note");             // <textarea>
-const btnSubmit = document.getElementById("submitBtn");     // <button>
-const elMsg = document.getElementById("message");           // <div> (tuỳ chọn)
+// ===================== 3) AUTO FIND DOM (KHÔNG PHỤ THUỘC ID) =====================
+function $q(sel) { return document.querySelector(sel); }
 
-/* ==== 4) Helpers ==== */
+function findServiceSelect() {
+  // Ưu tiên select đầu tiên trong phần form
+  // (trang bạn dropdown "Dịch vụ" là select đầu tiên)
+  return (
+    document.getElementById("serviceSelect") ||
+    $q('select[name="service"]') ||
+    $q("select")
+  );
+}
+
+function findDateInput() {
+  // Trang bạn có date picker
+  return (
+    document.getElementById("dateInput") ||
+    $q('input[type="date"]') ||
+    // fallback nếu browser render date dạng text
+    $q('input[placeholder*="dd"]') ||
+    $q('input[placeholder*="mm"]')
+  );
+}
+
+function findTimeSelect() {
+  // Nếu bạn có select giờ trống
+  return (
+    document.getElementById("timeSelect") ||
+    $q('select[name="time"]') ||
+    null
+  );
+}
+
+function findFullNameInput() {
+  return (
+    document.getElementById("fullName") ||
+    $q('input[placeholder*="Nguyễn"]') ||
+    $q('input[placeholder*="Họ"]') ||
+    $q('input[name="full_name"]')
+  );
+}
+
+function findPhoneInput() {
+  return (
+    document.getElementById("phone") ||
+    $q('input[type="tel"]') ||
+    $q('input[placeholder*="09"]') ||
+    $q('input[name="phone"]')
+  );
+}
+
+function findQtyInput() {
+  return (
+    document.getElementById("qty") ||
+    $q('input[type="number"]')
+  );
+}
+
+function findNoteInput() {
+  return (
+    document.getElementById("note") ||
+    $q('input[placeholder*="Ví dụ"]') ||
+    $q("textarea") ||
+    null
+  );
+}
+
+function findSubmitBtn() {
+  // Nút "Đặt lịch" thường là button cuối
+  return (
+    document.getElementById("submitBtn") ||
+    $q('button[type="submit"]') ||
+    [...document.querySelectorAll("button")].find(b => (b.textContent || "").toLowerCase().includes("đặt")) ||
+    $q("button")
+  );
+}
+
+function findMessageBox() {
+  return (
+    document.getElementById("message") ||
+    null
+  );
+}
+
+// DOM refs
+let elService, elDate, elTime, elFullName, elPhone, elQty, elNote, btnSubmit, elMsg;
+
+// ===================== 4) HELPERS =====================
 function setMsg(text, isError = false) {
   if (!elMsg) {
-    if (text) alert(text);
+    if (text) console.log(text);
     return;
   }
   elMsg.textContent = text || "";
@@ -35,11 +111,14 @@ function formatMinutes(n) {
   if (n === null || n === undefined) return "";
   return `${n} phút`;
 }
+
 function formatVnd(n) {
   if (n === null || n === undefined) return "";
   return Number(n).toLocaleString("vi-VN") + "đ";
 }
+
 function serviceLabel(s) {
+  // Ẩn duration/price nếu NULL
   const parts = [s.name];
   const dur = formatMinutes(s.duration_minutes);
   const price = formatVnd(s.price_vnd);
@@ -55,16 +134,22 @@ function toIsoAtLocalTime(dateStr, timeStr) {
 }
 
 function toIsoAtStartOfDay(dateStr) {
-  // yyyy-mm-dd -> 00:00 local -> ISO
   const d = new Date(`${dateStr}T00:00:00`);
   return d.toISOString();
 }
 
-/* ==== 5) Load services ==== */
-let SERVICES = []; // cache
+// ===================== 5) LOAD SERVICES =====================
+let SERVICES = [];
 
 async function loadServices() {
-  setMsg("Đang tải dịch vụ...");
+  // Guard
+  if (!elService) {
+    alert("Không tìm thấy ô chọn Dịch vụ (select). Vui lòng kiểm tra HTML.");
+    return;
+  }
+
+  // show loading in dropdown
+  elService.innerHTML = `<option value="">Đang tải dịch vụ...</option>`;
 
   const { data, error } = await db
     .from("services")
@@ -73,14 +158,14 @@ async function loadServices() {
     .order("sort_order", { ascending: true });
 
   if (error) {
-    console.error(error);
-    setMsg("Lỗi tải dịch vụ: " + error.message, true);
+    console.error("Load services error:", error);
+    elService.innerHTML = `<option value="">Lỗi tải dịch vụ</option>`;
+    alert("Lỗi tải dịch vụ: " + error.message + "\n\n(Thường do RLS chưa cho public SELECT services)");
     return;
   }
 
   SERVICES = data || [];
 
-  // Render select
   elService.innerHTML = "";
   const opt0 = document.createElement("option");
   opt0.value = "";
@@ -90,29 +175,21 @@ async function loadServices() {
   for (const s of SERVICES) {
     const opt = document.createElement("option");
     opt.value = String(s.id);
-    opt.textContent = serviceLabel(s); // Ẩn duration/price nếu NULL
+    opt.textContent = serviceLabel(s);
     elService.appendChild(opt);
   }
-
-  setMsg("");
 }
 
-/* ==== 6) Time slots (tuỳ chọn)
-   - Bạn có thể bỏ phần này nếu bạn không dùng timeSelect.
-   - Mình để timeSelect có option trống (cho phép không chọn giờ).
-==== */
+// ===================== 6) TIME OPTIONS (TUỲ CHỌN) =====================
 function renderTimeOptions() {
-  if (!elTime) return;
+  if (!elTime) return; // nếu trang bạn không dùng select giờ thì bỏ qua
 
-  // Luôn cho phép "không chọn giờ"
   elTime.innerHTML = "";
   const opt0 = document.createElement("option");
   opt0.value = "";
   opt0.textContent = "— (Không chọn giờ) —";
   elTime.appendChild(opt0);
 
-  // Nếu bạn muốn giờ cố định (ví dụ 09:00-20:00 mỗi 30 phút)
-  // bạn có thể điều chỉnh ở đây:
   const startHour = 9;
   const endHour = 20;
   const stepMin = 30;
@@ -131,9 +208,12 @@ function renderTimeOptions() {
   }
 }
 
-/* ==== 7) Submit booking ==== */
+// ===================== 7) SUBMIT BOOKING =====================
 async function submitBooking() {
-  setMsg("");
+  if (!elService || !elDate || !elFullName || !elPhone || !elQty || !btnSubmit) {
+    alert("Thiếu trường trong form. Hãy kiểm tra HTML / ID.");
+    return;
+  }
 
   const serviceId = elService.value;
   const dateStr = elDate.value;
@@ -141,16 +221,16 @@ async function submitBooking() {
   const fullName = (elFullName.value || "").trim();
   const phone = (elPhone.value || "").trim();
   const qty = Number(elQty.value || 1);
-  let note = (elNote.value || "").trim();
+  let note = (elNote?.value || "").trim();
 
-  if (!serviceId) return setMsg("Vui lòng chọn dịch vụ.", true);
-  if (!dateStr) return setMsg("Vui lòng chọn ngày.", true);
-  if (!fullName) return setMsg("Vui lòng nhập họ và tên.", true);
-  if (!phone) return setMsg("Vui lòng nhập số điện thoại.", true);
-  if (!Number.isFinite(qty) || qty <= 0) return setMsg("Số lượng không hợp lệ.", true);
+  if (!serviceId) return alert("Vui lòng chọn dịch vụ.");
+  if (!dateStr) return alert("Vui lòng chọn ngày.");
+  if (!fullName) return alert("Vui lòng nhập họ và tên.");
+  if (!phone) return alert("Vui lòng nhập số điện thoại.");
+  if (!Number.isFinite(qty) || qty <= 0) return alert("Số lượng không hợp lệ.");
 
   const selectedService = SERVICES.find(s => String(s.id) === String(serviceId));
-  if (!selectedService) return setMsg("Dịch vụ không hợp lệ.", true);
+  if (!selectedService) return alert("Dịch vụ không hợp lệ.");
 
   // start_at: nếu có giờ -> dùng giờ đó; nếu không -> 00:00 của ngày
   const startAtIso = timeStr ? toIsoAtLocalTime(dateStr, timeStr) : toIsoAtStartOfDay(dateStr);
@@ -160,18 +240,18 @@ async function submitBooking() {
     note = note ? `[CHƯA CHỌN GIỜ] ${note}` : "[CHƯA CHỌN GIỜ]";
   }
 
-  // duration_minutes có thể NULL (dịch vụ phụ)
   const durationMinutes = selectedService.duration_minutes ?? null;
 
-  setMsg("Đang gửi đặt lịch...");
+  btnSubmit.disabled = true;
+  btnSubmit.textContent = "Đang gửi...";
 
-  // 1) Insert bookings
+  // 1) insert bookings
   const { data: booking, error: bErr } = await db
     .from("bookings")
     .insert({
       service_id: selectedService.id,
-      start_at: startAtIso,                     // luôn có ngày; nếu không chọn giờ thì 00:00
-      duration_minutes: durationMinutes,        // NULL ok
+      start_at: startAtIso,
+      duration_minutes: durationMinutes, // NULL ok
       qty: qty,
       note: note || null
     })
@@ -179,12 +259,14 @@ async function submitBooking() {
     .single();
 
   if (bErr) {
-    console.error(bErr);
-    setMsg("Lỗi đặt lịch: " + bErr.message, true);
+    console.error("Insert booking error:", bErr);
+    alert("Lỗi đặt lịch: " + bErr.message);
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = "Đặt lịch";
     return;
   }
 
-  // 2) Insert booking_customers
+  // 2) insert booking_customers
   const { error: cErr } = await db
     .from("booking_customers")
     .insert({
@@ -194,29 +276,60 @@ async function submitBooking() {
     });
 
   if (cErr) {
-    console.error(cErr);
-    setMsg("Đặt lịch thành công nhưng lỗi lưu thông tin khách: " + cErr.message, true);
+    console.error("Insert customer error:", cErr);
+    alert("Đặt lịch thành công nhưng lỗi lưu khách: " + cErr.message);
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = "Đặt lịch";
     return;
   }
 
-  setMsg("✅ Đặt lịch thành công!");
-  // Reset nhẹ
+  alert("✅ Đặt lịch thành công!");
+
+  btnSubmit.disabled = false;
+  btnSubmit.textContent = "Đặt lịch";
+
+  // reset nhẹ (tuỳ bạn)
   // elService.value = "";
   // elDate.value = "";
   // if (elTime) elTime.value = "";
   // elFullName.value = "";
   // elPhone.value = "";
   // elQty.value = "1";
-  // elNote.value = "";
+  // if (elNote) elNote.value = "";
 }
 
-/* ==== 8) Wire events ==== */
+// ===================== 8) INIT =====================
 document.addEventListener("DOMContentLoaded", async () => {
+  // bind DOM
+  elService = findServiceSelect();
+  elDate = findDateInput();
+  elTime = findTimeSelect();
+  elFullName = findFullNameInput();
+  elPhone = findPhoneInput();
+  elQty = findQtyInput();
+  elNote = findNoteInput();
+  btnSubmit = findSubmitBtn();
+  elMsg = findMessageBox();
+
+  // debug nhanh (bạn có thể xoá sau)
+  console.log("DOM found:", {
+    elService: !!elService,
+    elDate: !!elDate,
+    elTime: !!elTime,
+    elFullName: !!elFullName,
+    elPhone: !!elPhone,
+    elQty: !!elQty,
+    elNote: !!elNote,
+    btnSubmit: !!btnSubmit
+  });
+
   await loadServices();
   renderTimeOptions();
-});
 
-btnSubmit?.addEventListener("click", (e) => {
-  e.preventDefault();
-  submitBooking();
+  if (btnSubmit) {
+    btnSubmit.addEventListener("click", (e) => {
+      e.preventDefault();
+      submitBooking();
+    });
+  }
 });
