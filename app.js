@@ -1,351 +1,420 @@
-/* app.js - Chip Nails booking (Supabase)
-   - Có nút "Không chọn giờ" (no-time)
-   - Fix lỗi 409 khi nhiều người chọn "Không chọn giờ" (start_at 00:00 + random seconds)
-   - Ẩn duration/price nếu NULL
+/* app.js - version for your index.html IDs:
+  #service, #date, #slots, #fullName, #phone, #qty, #note, #submit, #msg
 */
 
 (() => {
-  // ====== SUPABASE CONFIG (giữ đúng project của bạn) ======
-  const SUPABASE_URL = "https://zaqruavtxyjxwpfdoo1o.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."; // <-- giữ y hệt key bạn đang dùng
+  // ====== CONFIG (điền đúng của bạn) ======
+  // Nếu bạn đã set SUPABASE_URL / SUPABASE_ANON_KEY ở nơi khác thì có thể để như dưới (ưu tiên window.*)
+  const SUPABASE_URL =
+    window.SUPABASE_URL ||
+    "PASTE_YOUR_SUPABASE_URL_HERE"; // ví dụ: https://xxxxx.supabase.co
+  const SUPABASE_ANON_KEY =
+    window.SUPABASE_ANON_KEY ||
+    "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
 
-  // Supabase client (yêu cầu bạn đã include supabase-js trên index.html)
-  const db = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  if (!db) {
-    console.error("Supabase client not found. Hãy kiểm tra <script src='...supabase-js...'> trong index.html");
-    return;
-  }
-
-  // ====== DOM ======
-  const elService = document.getElementById("service");
-  const elDate = document.getElementById("date");
-  const elTimeGrid = document.getElementById("timeGrid"); // nơi render các nút giờ
-  const elFullName = document.getElementById("fullName");
-  const elPhone = document.getElementById("phone");
-  const elQty = document.getElementById("qty");
-  const elNote = document.getElementById("note");
-  const elForm = document.getElementById("bookingForm");
-  const elSubmit = document.getElementById("btnSubmit");
-  const elStatus = document.getElementById("status"); // nếu không có thì vẫn chạy
-
-  if (!elService || !elDate || !elTimeGrid || !elFullName || !elPhone || !elQty || !elNote || !elForm || !elSubmit) {
-    console.error("Thiếu ID element trong index.html. Kiểm tra các id: service, date, timeGrid, fullName, phone, qty, note, bookingForm, btnSubmit");
-    return;
-  }
-
-  // ====== STATE ======
-  let services = [];
-  let selectedTime = null; // "08:00" | "08:30" | ... | "__NO_TIME__"
-
-  const TZ_OFFSET = "+07:00"; // VN
-  const SLOT_STEP_MIN = 30;
+  // Business hours
   const OPEN_HOUR = 8;
   const CLOSE_HOUR = 21;
+  const STEP_MINUTES = 30;
 
-  // ====== UI HELPERS ======
-  function setStatus(msg) {
-    if (!elStatus) return;
-    elStatus.textContent = msg || "";
+  // ====== Helpers ======
+  const $ = (id) => document.getElementById(id);
+  const pad2 = (n) => String(n).padStart(2, "0");
+
+  function setMsg(text = "", type = "info") {
+    const el = $("msg");
+    if (!el) return;
+    el.textContent = text || "";
+    el.style.display = text ? "block" : "none";
+    el.style.borderColor =
+      type === "error" ? "#f5c2c7" : type === "ok" ? "#bcd0ff" : "#e5e7eb";
+    el.style.background =
+      type === "error" ? "#fff5f5" : type === "ok" ? "#eef4ff" : "#f8fafc";
   }
 
-  function fmtMoney(vnd) {
-    try {
-      return new Intl.NumberFormat("vi-VN").format(vnd) + "đ";
-    } catch {
-      return vnd + "đ";
+  function assertDom() {
+    const required = ["service", "date", "slots", "fullName", "phone", "qty", "note", "submit"];
+    const missing = required.filter((id) => !$(id));
+    if (missing.length) {
+      console.error("Thiếu ID element trong index.html:", missing.join(", "));
+      setMsg(
+        "Lỗi: Thiếu ID trong index.html: " + missing.join(", "),
+        "error"
+      );
+      return false;
     }
+    return true;
   }
 
-  function getSelectedService() {
-    const id = Number(elService.value);
-    return services.find(s => Number(s.id) === id) || null;
+  function formatServiceLabel(svc) {
+    // Ẩn duration/price nếu NULL
+    const parts = [svc.name];
+    if (svc.duration_minutes !== null && svc.duration_minutes !== undefined) {
+      parts.push(`${svc.duration_minutes}p`);
+    }
+    if (svc.price_vnd !== null && svc.price_vnd !== undefined) {
+      parts.push(`${Number(svc.price_vnd).toLocaleString("vi-VN")}đ`);
+    }
+    return parts.join(" • ");
   }
 
-  function createTimeSlots() {
+  function parseYMD(ymd) {
+    // ymd = 'YYYY-MM-DD'
+    const [y, m, d] = (ymd || "").split("-").map((x) => parseInt(x, 10));
+    if (!y || !m || !d) return null;
+    return { y, m, d };
+  }
+
+  function localDateToISO(ymd, hhmm) {
+    // Create local Date then convert to ISO (timestamptz)
+    const p = parseYMD(ymd);
+    if (!p) return null;
+    const [hh, mm] = (hhmm || "00:00").split(":").map((x) => parseInt(x, 10));
+    const dt = new Date(p.y, p.m - 1, p.d, hh || 0, mm || 0, 0, 0);
+    return dt.toISOString();
+  }
+
+  function buildSlots() {
     const slots = [];
     for (let h = OPEN_HOUR; h <= CLOSE_HOUR; h++) {
-      for (let m = 0; m < 60; m += SLOT_STEP_MIN) {
-        if (h === CLOSE_HOUR && m > 0) break; // 21:00 là slot cuối
-        const hh = String(h).padStart(2, "0");
-        const mm = String(m).padStart(2, "0");
-        slots.push(`${hh}:${mm}`);
+      for (let m = 0; m < 60; m += STEP_MINUTES) {
+        if (h === CLOSE_HOUR && m > 0) continue; // stop exactly at 21:00
+        slots.push(`${pad2(h)}:${pad2(m)}`);
       }
     }
     return slots;
   }
 
-  function randomInt(min, max) {
-    // inclusive
-    const arr = new Uint32Array(1);
-    crypto.getRandomValues(arr);
-    const r = arr[0] / 0xffffffff;
-    return Math.floor(r * (max - min + 1)) + min;
-  }
+  function renderSlotButtons({
+    container,
+    allSlots,
+    bookedSet,
+    selectedTime,
+    onPick,
+    allowNoTime = true,
+  }) {
+    container.innerHTML = "";
 
-  // Tạo start_at cho "Không chọn giờ" để KHÔNG bị trùng (fix 409)
-  function buildNoTimeStartAtISO(dateStr) {
-    // dateStr dạng "YYYY-MM-DD" từ input type="date"
-    // tạo 00:00:SS (SS random 1..59)
-    const ss = randomInt(1, 59);
-    return `${dateStr}T00:00:${String(ss).padStart(2, "0")}${TZ_OFFSET}`;
-  }
-
-  function buildStartAtISO(dateStr, timeStr) {
-    // timeStr "HH:MM"
-    return `${dateStr}T${timeStr}:00${TZ_OFFSET}`;
-  }
-
-  // ====== LOAD SERVICES ======
-  async function loadServices() {
-    setStatus("Đang tải dịch vụ...");
-
-    const { data, error } = await db
-      .from("services")
-      .select("id, name, duration_minutes, price_vnd, is_active, sort_order")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("id", { ascending: true });
-
-    if (error) {
-      console.error("Load services error:", error);
-      setStatus("Lỗi tải dịch vụ: " + (error.message || ""));
-      return;
-    }
-
-    services = data || [];
-    renderServiceOptions();
-    setStatus("");
-  }
-
-  function renderServiceOptions() {
-    elService.innerHTML = "";
-
-    // option placeholder
-    const opt0 = document.createElement("option");
-    opt0.value = "";
-    opt0.textContent = "-- Chọn dịch vụ --";
-    opt0.disabled = true;
-    opt0.selected = true;
-    elService.appendChild(opt0);
-
-    for (const s of services) {
-      const opt = document.createElement("option");
-      opt.value = s.id;
-
-      // ẨN duration & price nếu NULL
-      const parts = [String(s.name || "").toUpperCase()];
-      if (s.duration_minutes != null) parts.push(`${s.duration_minutes}p`);
-      if (s.price_vnd != null) parts.push(fmtMoney(s.price_vnd));
-      opt.textContent = parts.join(" • ");
-
-      elService.appendChild(opt);
-    }
-  }
-
-  // ====== LOAD BOOKINGS (để disable slot đã đặt) ======
-  async function fetchBookedTimesForDate(dateStr) {
-    // lấy bookings trong ngày đó (00:00 -> 23:59)
-    const dayStart = `${dateStr}T00:00:00${TZ_OFFSET}`;
-    const dayEnd = `${dateStr}T23:59:59${TZ_OFFSET}`;
-
-    const { data, error } = await db
-      .from("bookings")
-      .select("start_at")
-      .gte("start_at", dayStart)
-      .lte("start_at", dayEnd);
-
-    if (error) {
-      console.error("Fetch bookings error:", error);
-      throw error;
-    }
-
-    const booked = new Set();
-    for (const r of data || []) {
-      if (!r.start_at) continue;
-
-      // nếu là booking "không chọn giờ" => start_at giờ 00:00 => bỏ qua, không block các slot 8-21
-      const d = new Date(r.start_at);
-      if (d.getHours() < OPEN_HOUR) continue;
-
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      booked.add(`${hh}:${mm}`);
-    }
-    return booked;
-  }
-
-  // ====== RENDER TIME GRID ======
-  async function renderTimes() {
-    elTimeGrid.innerHTML = "";
-    selectedTime = null;
-
-    const service = getSelectedService();
-    const dateStr = elDate.value;
-
-    if (!service || !dateStr) {
-      // Chưa đủ điều kiện
-      return;
-    }
-
-    setStatus("Đang tải giờ trống...");
-
-    let bookedSet = new Set();
-    try {
-      bookedSet = await fetchBookedTimesForDate(dateStr);
-    } catch (e) {
-      setStatus("Lỗi tải giờ trống: " + (e?.message || ""));
-      return;
-    } finally {
-      setStatus("");
-    }
-
-    // Nút "Không chọn giờ" (luôn cho chọn)
-    const btnNoTime = document.createElement("button");
-    btnNoTime.type = "button";
-    btnNoTime.className = "time-btn";
-    btnNoTime.textContent = "Không chọn giờ";
-    btnNoTime.dataset.time = "__NO_TIME__";
-    btnNoTime.addEventListener("click", () => {
-      selectedTime = "__NO_TIME__";
-      highlightSelectedTime();
-    });
-    elTimeGrid.appendChild(btnNoTime);
-
-    const slots = createTimeSlots();
-    for (const t of slots) {
+    // "Không chọn giờ"
+    if (allowNoTime) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "time-btn";
-      btn.textContent = t;
-      btn.dataset.time = t;
+      btn.className = "slot";
+      btn.textContent = "Không chọn giờ";
+      if (selectedTime === null) btn.classList.add("active");
+      btn.addEventListener("click", () => onPick(null));
+      container.appendChild(btn);
+    }
 
-      if (bookedSet.has(t)) {
+    allSlots.forEach((t) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "slot";
+      btn.textContent = t;
+
+      const isBooked = bookedSet.has(t);
+      if (isBooked) {
         btn.disabled = true;
-        btn.classList.add("disabled");
+        btn.title = "Đã có người đặt";
+        btn.style.opacity = "0.5";
       }
 
+      if (selectedTime === t) btn.classList.add("active");
+
       btn.addEventListener("click", () => {
-        if (btn.disabled) return;
-        selectedTime = t;
-        highlightSelectedTime();
+        if (!btn.disabled) onPick(t);
       });
 
-      elTimeGrid.appendChild(btn);
-    }
-  }
-
-  function highlightSelectedTime() {
-    const buttons = elTimeGrid.querySelectorAll("button.time-btn");
-    buttons.forEach(b => {
-      const t = b.dataset.time;
-      if (t === selectedTime) b.classList.add("selected");
-      else b.classList.remove("selected");
+      container.appendChild(btn);
     });
   }
 
-  // ====== SUBMIT BOOKING ======
-  async function onSubmit(e) {
-    e.preventDefault();
+  // ====== Main ======
+  document.addEventListener("DOMContentLoaded", async () => {
+    if (!assertDom()) return;
 
-    const service = getSelectedService();
-    const dateStr = elDate.value;
-
-    const fullName = (elFullName.value || "").trim();
-    const phone = (elPhone.value || "").trim();
-    const qty = Number(elQty.value || 1);
-    const note = (elNote.value || "").trim();
-
-    if (!service) return alert("Vui lòng chọn dịch vụ.");
-    if (!dateStr) return alert("Vui lòng chọn ngày.");
-    if (!fullName) return alert("Vui lòng nhập họ và tên.");
-    if (!phone) return alert("Vui lòng nhập số điện thoại.");
-    if (!Number.isFinite(qty) || qty < 1) return alert("Số lượng không hợp lệ.");
-
-    // Thời gian: cho phép không chọn
-    const isNoTime = (selectedTime === "__NO_TIME__" || !selectedTime);
-
-    // start_at:
-    // - có giờ => dùng giờ đó
-    // - không chọn giờ => 00:00:SS random để tránh trùng -> fix 409
-    const startAtIso = isNoTime
-      ? buildNoTimeStartAtISO(dateStr)
-      : buildStartAtISO(dateStr, selectedTime);
-
-    // duration_minutes:
-    // nếu service NULL mà DB bookings đang NOT NULL => gửi 0 để khỏi lỗi
-    const durationMinutes = (service.duration_minutes != null) ? Number(service.duration_minutes) : 0;
-
-    // note: gắn nhãn để admin biết là "không chọn giờ"
-    const finalNote = isNoTime
-      ? `[NO_TIME] ${note || ""}`.trim()
-      : note;
-
-    elSubmit.disabled = true;
-    elSubmit.textContent = "Đang đặt...";
-
-    try {
-      // 1) insert bookings
-      const { data: booking, error: bErr } = await db
-        .from("bookings")
-        .insert({
-          service_id: Number(service.id),
-          start_at: startAtIso,
-          duration_minutes: durationMinutes,
-          qty: qty,
-          note: finalNote || null
-        })
-        .select("id")
-        .single();
-
-      if (bErr) {
-        console.error("Insert bookings error:", bErr);
-        alert("Lỗi đặt lịch: " + (bErr.message || JSON.stringify(bErr)));
-        return;
-      }
-
-      // 2) insert booking_customers
-      const { error: cErr } = await db
-        .from("booking_customers")
-        .insert({
-          booking_id: booking.id,
-          full_name: fullName,
-          phone: phone
-        });
-
-      if (cErr) {
-        console.error("Insert booking_customers error:", cErr);
-        alert("Đặt lịch thành công nhưng lỗi lưu khách: " + (cErr.message || ""));
-        return;
-      }
-
-      alert("✅ Đặt lịch thành công!");
-
-      // reload grid giờ trống (để cập nhật)
-      await renderTimes();
-
-      // reset form (tuỳ bạn)
-      elFullName.value = "";
-      elPhone.value = "";
-      elQty.value = "1";
-      elNote.value = "";
-      selectedTime = null;
-      highlightSelectedTime();
-
-    } finally {
-      elSubmit.disabled = false;
-      elSubmit.textContent = "Đặt lịch";
+    // Basic check supabase client
+    if (!window.supabase || !window.supabase.createClient) {
+      setMsg("Lỗi: chưa load được thư viện Supabase. Kiểm tra CDN @supabase/supabase-js.", "error");
+      return;
     }
-  }
+    if (!SUPABASE_URL.startsWith("http")) {
+      setMsg("Lỗi: SUPABASE_URL không hợp lệ (phải bắt đầu bằng http/https).", "error");
+      return;
+    }
+    if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.length < 20) {
+      setMsg("Lỗi: SUPABASE_ANON_KEY chưa đúng.", "error");
+      return;
+    }
 
-  // ====== EVENTS ======
-  elService.addEventListener("change", renderTimes);
-  elDate.addEventListener("change", renderTimes);
-  elForm.addEventListener("submit", onSubmit);
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // ====== INIT ======
-  (async function init() {
+    const elService = $("service");
+    const elDate = $("date");
+    const elSlots = $("slots");
+    const elFullName = $("fullName");
+    const elPhone = $("phone");
+    const elQty = $("qty");
+    const elNote = $("note");
+    const btnSubmit = $("submit");
+
+    // State
+    let services = [];
+    let selectedService = null;
+    let selectedTime = null; // null = "Không chọn giờ"
+    const allSlots = buildSlots();
+
+    // Ensure HTML has some basic slot button styles even if CSS not present
+    // (won't break if you already have)
+    if (!document.getElementById("slot-style")) {
+      const style = document.createElement("style");
+      style.id = "slot-style";
+      style.textContent = `
+        #slots { display:flex; flex-wrap:wrap; gap:10px; }
+        #slots .slot { padding:10px 14px; border:1px solid #d1d5db; background:#fff; border-radius:10px; cursor:pointer; min-width:92px; }
+        #slots .slot.active { border-color:#111827; box-shadow:0 0 0 2px rgba(17,24,39,.12) inset; }
+      `;
+      document.head.appendChild(style);
+    }
+
+    async function loadServices() {
+      setMsg("Đang tải dịch vụ...", "info");
+
+      // Load active services
+      const { data, error } = await supabase
+        .from("services")
+        .select("id,name,duration_minutes,price_vnd,is_active,sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true });
+
+      if (error) {
+        console.error("load services error:", error);
+        setMsg("Lỗi tải dịch vụ: " + (error.message || "unknown"), "error");
+        return;
+      }
+
+      services = Array.isArray(data) ? data : [];
+      elService.innerHTML = "";
+
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = "— Chọn dịch vụ —";
+      elService.appendChild(opt0);
+
+      services.forEach((svc) => {
+        const opt = document.createElement("option");
+        opt.value = String(svc.id);
+        opt.textContent = formatServiceLabel(svc);
+        elService.appendChild(opt);
+      });
+
+      setMsg("", "info");
+    }
+
+    function getSelectedService() {
+      const id = elService.value ? Number(elService.value) : null;
+      if (!id) return null;
+      return services.find((s) => Number(s.id) === id) || null;
+    }
+
+    async function loadBookedTimesForDate(ymd) {
+      // Return Set('08:00', ...)
+      const booked = new Set();
+      const p = parseYMD(ymd);
+      if (!p) return booked;
+
+      // Query range [00:00, 23:59] local -> use ISO range
+      const startISO = new Date(p.y, p.m - 1, p.d, 0, 0, 0, 0).toISOString();
+      const endISO = new Date(p.y, p.m - 1, p.d, 23, 59, 59, 999).toISOString();
+
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("start_at")
+        .gte("start_at", startISO)
+        .lte("start_at", endISO);
+
+      if (error) {
+        console.error("load bookings error:", error);
+        // Nếu bị RLS SELECT thì vẫn cho người dùng đặt, chỉ không lọc giờ bận
+        setMsg("Không tải được lịch bận (có thể do policy). Vẫn có thể đặt lịch.", "error");
+        return booked;
+      }
+
+      (data || []).forEach((row) => {
+        if (!row.start_at) return;
+        const dt = new Date(row.start_at);
+        const hh = pad2(dt.getHours());
+        const mm = pad2(dt.getMinutes());
+        const t = `${hh}:${mm}`;
+
+        // Nếu booking là "không chọn giờ" lưu 00:00 thì đừng block slot nào
+        if (t !== "00:00") booked.add(t);
+      });
+
+      return booked;
+    }
+
+    async function refreshSlots() {
+      selectedService = getSelectedService();
+      const ymd = elDate.value;
+
+      // Nếu chưa chọn ngày thì vẫn render slot nhưng không lọc booked
+      const booked = ymd ? await loadBookedTimesForDate(ymd) : new Set();
+
+      // Rule: luôn cho phép "Không chọn giờ"
+      renderSlotButtons({
+        container: elSlots,
+        allSlots,
+        bookedSet: booked,
+        selectedTime,
+        onPick: (t) => {
+          selectedTime = t; // null or HH:mm
+          refreshSlots(); // rerender active states
+        },
+        allowNoTime: true,
+      });
+    }
+
+    // Events
+    elService.addEventListener("change", async () => {
+      selectedService = getSelectedService();
+      selectedTime = null; // reset về "Không chọn giờ"
+      await refreshSlots();
+    });
+
+    elDate.addEventListener("change", async () => {
+      selectedTime = null; // reset
+      await refreshSlots();
+    });
+
+    btnSubmit.addEventListener("click", async () => {
+      try {
+        setMsg("", "info");
+
+        selectedService = getSelectedService();
+        const ymd = elDate.value;
+        const fullName = (elFullName.value || "").trim();
+        const phone = (elPhone.value || "").trim();
+        const qty = Number(elQty.value || 1);
+        const note = (elNote.value || "").trim();
+
+        if (!selectedService) {
+          setMsg("Bạn chưa chọn dịch vụ.", "error");
+          return;
+        }
+        if (!ymd) {
+          setMsg("Bạn chưa chọn ngày.", "error");
+          return;
+        }
+        if (!fullName) {
+          setMsg("Vui lòng nhập họ và tên.", "error");
+          return;
+        }
+        if (!phone) {
+          setMsg("Vui lòng nhập số điện thoại.", "error");
+          return;
+        }
+        if (!Number.isFinite(qty) || qty <= 0) {
+          setMsg("Số lượng không hợp lệ.", "error");
+          return;
+        }
+
+        // Create booking start_at
+        const startISO = localDateToISO(ymd, selectedTime || "00:00");
+        if (!startISO) {
+          setMsg("Ngày/giờ không hợp lệ.", "error");
+          return;
+        }
+
+        // duration in DB: nếu bạn đã ALTER TABLE cho phép NULL thì có thể gửi null
+        // Nhưng để tránh lỗi NOT NULL còn sót, mình gửi 0 khi duration_minutes là null.
+        const durationToSave =
+          selectedService.duration_minutes === null || selectedService.duration_minutes === undefined
+            ? 0
+            : Number(selectedService.duration_minutes);
+
+        const noteToSave =
+          (selectedTime === null ? "[KHONG_CHON_GIO] " : "") + (note || "");
+
+        // Insert into bookings
+        const { data: bookingRows, error: bookingErr } = await supabase
+          .from("bookings")
+          .insert([
+            {
+              service_id: Number(selectedService.id),
+              start_at: startISO,
+              duration_minutes: durationToSave,
+              qty: qty,
+              note: noteToSave || null,
+            },
+          ])
+          .select("id")
+          .limit(1);
+
+        if (bookingErr) {
+          console.error("Insert bookings error:", bookingErr);
+          setMsg(
+            "Lỗi đặt lịch (bookings): " + (bookingErr.message || "unknown") +
+              "\nNếu bạn thấy 401/403/RLS thì cần tạo policy INSERT cho public.",
+            "error"
+          );
+          return;
+        }
+
+        const bookingId = bookingRows && bookingRows[0] ? bookingRows[0].id : null;
+        if (!bookingId) {
+          setMsg("Đặt lịch không thành công (không lấy được bookingId).", "error");
+          return;
+        }
+
+        // Insert into booking_customers
+        const { error: custErr } = await supabase
+          .from("booking_customers")
+          .insert([
+            {
+              booking_id: bookingId,
+              full_name: fullName,
+              phone: phone,
+            },
+          ]);
+
+        if (custErr) {
+          console.error("Insert booking_customers error:", custErr);
+          setMsg(
+            "Đặt lịch đã tạo nhưng lưu khách bị lỗi: " + (custErr.message || "unknown"),
+            "error"
+          );
+          return;
+        }
+
+        setMsg("✅ Đặt lịch thành công! Cảm ơn bạn.", "ok");
+
+        // Reset
+        elFullName.value = "";
+        elPhone.value = "";
+        elQty.value = "1";
+        elNote.value = "";
+        selectedTime = null;
+
+        await refreshSlots();
+      } catch (e) {
+        console.error(e);
+        setMsg("Có lỗi không xác định: " + (e?.message || e), "error");
+      }
+    });
+
+    // Init
     await loadServices();
-    // nếu user đã có sẵn date/service thì render
-    await renderTimes();
-  })();
+
+    // default date = today if empty
+    if (!elDate.value) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = pad2(now.getMonth() + 1);
+      const d = pad2(now.getDate());
+      elDate.value = `${y}-${m}-${d}`;
+    }
+    await refreshSlots();
+  });
 })();
