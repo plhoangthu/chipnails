@@ -7,10 +7,10 @@
   // Nếu bạn đã set SUPABASE_URL / SUPABASE_ANON_KEY ở nơi khác thì có thể để như dưới (ưu tiên window.*)
   const SUPABASE_URL =
     window.SUPABASE_URL ||
-    "PASTE_YOUR_SUPABASE_URL_HERE"; // ví dụ: https://xxxxx.supabase.co
+    "https://zaqruavtxyjxwpfdoolo.supabase.co"; // ví dụ: https://xxxxx.supabase.co
   const SUPABASE_ANON_KEY =
     window.SUPABASE_ANON_KEY ||
-    "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+    "sb_publishable_sn53kFJuZmB2dHsBaM7DnQ_H5cQe5Pc";
 
   // Business hours
   const OPEN_HOUR = 8;
