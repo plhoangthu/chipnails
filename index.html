@@ -1,64 +1,159 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <style>
-  .page-title {
-    text-align: center;
-    font-weight: 800;
-    font-size: 28px;
-    letter-spacing: 0.5px;
-    color: #111827;
-    margin-bottom: 8px;
-  }
-
-  .page-subtitle {
-    text-align: center;
-    font-size: 14px;
-    color: #6b7280;
-    margin-bottom: 6px;
-  }
-
-  .page-note {
-    text-align: center;
-    font-size: 13px;
-    color: #ef4444; /* đỏ nhẹ để cảnh báo */
-    font-weight: 500;
-    margin-bottom: 18px;
-  }
-</style>
-
-
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title> ĐẶT LỊCH TẠI CHIP NAILS DỊP TẾT </title>
+
+  <title>ĐẶT LỊCH TẠI CHIP NAILS DỊP TẾT 2026</title>
+
   <style>
-    body { font-family: system-ui, Arial; margin: 0; background:#f6f7fb; }
-    .wrap { max-width: 720px; margin: 24px auto; padding: 16px; }
-    .card { background:#fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.06); }
-    h1 { margin: 0 0 12px; font-size: 22px; }
-    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    label { display:block; font-size: 13px; color:#333; margin-bottom: 6px; }
-    input, select, textarea, button {
-      width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
-      border: 1px solid #d6d9e0; font-size: 15px; background:#fff;
+    body {
+      font-family: system-ui, Arial;
+      margin: 0;
+      background: #f6f7fb;
     }
-    textarea { min-height: 86px; resize: vertical; }
-    button { border: 0; cursor: pointer; font-weight: 650; padding: 12px; }
-    .btn { background: #111827; color:#fff; }
-    .muted { color:#6b7280; font-size: 13px; }
 
-    .slots { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
-    .slot { padding: 10px; border-radius: 12px; border:1px solid #d6d9e0; background:#fff; cursor:pointer; text-align:center; user-select:none; }
-    .slot[aria-disabled="true"]{ opacity:.45; cursor:not-allowed; }
-    .slot.selected{ outline: 3px solid rgba(17,24,39,.2); border-color:#111827; }
+    .wrap {
+      max-width: 720px;
+      margin: 24px auto;
+      padding: 16px;
+    }
 
-    .ok { background:#ecfdf5; border:1px solid #10b98133; padding: 10px 12px; border-radius: 12px; }
-    .err { background:#fef2f2; border:1px solid #ef444433; padding: 10px 12px; border-radius: 12px; }
-    @media (max-width: 560px){ .row{ grid-template-columns: 1fr; } .slots{ grid-template-columns: repeat(3, 1fr);} }
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.06);
+    }
+
+    /* ===== HEADER ===== */
+    .page-title {
+      text-align: center;
+      font-weight: 800;
+      font-size: 28px;
+      letter-spacing: 0.5px;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+
+    .page-subtitle {
+      text-align: center;
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .page-note-wrap {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .page-note {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: #fff7ed;
+      color: #c2410c;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* ===== FORM ===== */
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #d6d9e0;
+      font-size: 15px;
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 86px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      font-weight: 650;
+      padding: 12px;
+    }
+
+    .btn {
+      background: #111827;
+      color: #fff;
+    }
+
+    .muted {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    /* ===== TIME SLOTS ===== */
+    .slots {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .slot {
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid #d6d9e0;
+      background: #fff;
+      cursor: pointer;
+      text-align: center;
+      user-select: none;
+    }
+
+    .slot[aria-disabled="true"] {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .slot.selected {
+      outline: 3px solid rgba(17,24,39,.2);
+      border-color: #111827;
+    }
+
+    .ok {
+      background: #ecfdf5;
+      border: 1px solid #10b98133;
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+
+    .err {
+      background: #fef2f2;
+      border: 1px solid #ef444433;
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+
+    @media (max-width: 560px) {
+      .row { grid-template-columns: 1fr; }
+      .slots { grid-template-columns: repeat(3, 1fr); }
+    }
   </style>
 </head>
+
 <body>
- <body>
   <div class="wrap">
     <div class="card">
 
@@ -68,12 +163,11 @@
         Chọn dịch vụ, ngày và giờ trống. Sau khi đặt, vui lòng đến đúng giờ.
       </p>
 
-      <p class="page-note">
-        * Có thể trễ hơn 15 phút so với thời gian đã đặt lịch
-      </p>
-
-      <!-- PHẦN FORM BÊN DƯỚI GIỮ NGUYÊN -->
-
+      <div class="page-note-wrap">
+        <div class="page-note">
+          ⏰ Có thể trễ hơn 15 phút so với thời gian đã đặt lịch
+        </div>
+      </div>
 
       <div id="msg"></div>
 
@@ -91,7 +185,9 @@
       <div style="margin-top:12px;">
         <label>Giờ trống</label>
         <div id="slots" class="slots"></div>
-        <div class="muted" style="margin-top:6px;">* Chỉ hiển thị giờ còn trống.</div>
+        <div class="muted" style="margin-top:6px;">
+          * Chỉ hiển thị giờ còn trống.
+        </div>
       </div>
 
       <div class="row" style="margin-top:12px;">
@@ -126,7 +222,7 @@
     </p>
   </div>
 
-  <!-- Supabase JS CDN -->
+  <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
