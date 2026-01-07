@@ -10,7 +10,7 @@
     body {
       font-family: system-ui, Arial;
       margin: 0;
-      background: #f6f7fb;
+      background: linear-gradient(180deg, #fff7ed, #f6f7fb);
     }
 
     .wrap {
@@ -21,41 +21,56 @@
 
     .card {
       background: #fff;
-      border-radius: 14px;
-      padding: 16px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.06);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.08);
     }
 
     /* ===== HEADER ===== */
     .page-title {
       text-align: center;
-      font-weight: 800;
-      font-size: 28px;
-      letter-spacing: 0.5px;
-      color: #111827;
-      margin-bottom: 8px;
+      font-weight: 900;
+      font-size: 30px;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, #dc2626, #f59e0b);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
     .page-subtitle {
       text-align: center;
       font-size: 14px;
       color: #6b7280;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
-    .page-note-wrap {
-      text-align: center;
+    .badge-wrap {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
       margin-bottom: 18px;
     }
 
-    .page-note {
-      display: inline-block;
+    .badge {
       padding: 6px 14px;
       border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-warning {
       background: #fff7ed;
       color: #c2410c;
-      font-size: 13px;
-      font-weight: 500;
+      border: 1px solid #fed7aa;
+    }
+
+    .badge-success {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
     }
 
     /* ===== FORM ===== */
@@ -68,15 +83,16 @@
     label {
       display: block;
       font-size: 13px;
-      color: #333;
+      color: #374151;
       margin-bottom: 6px;
+      font-weight: 600;
     }
 
     input, select, textarea, button {
       width: 100%;
       box-sizing: border-box;
-      padding: 10px 12px;
-      border-radius: 10px;
+      padding: 11px 12px;
+      border-radius: 12px;
       border: 1px solid #d6d9e0;
       font-size: 15px;
       background: #fff;
@@ -90,13 +106,18 @@
     button {
       border: 0;
       cursor: pointer;
-      font-weight: 650;
-      padding: 12px;
+      font-weight: 700;
+      padding: 14px;
+      font-size: 16px;
     }
 
     .btn {
-      background: #111827;
+      background: linear-gradient(90deg, #dc2626, #f59e0b);
       color: #fff;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
     }
 
     .muted {
@@ -113,42 +134,48 @@
     }
 
     .slot {
-      padding: 10px;
-      border-radius: 12px;
+      padding: 12px 6px;
+      border-radius: 14px;
       border: 1px solid #d6d9e0;
       background: #fff;
       cursor: pointer;
       text-align: center;
       user-select: none;
+      font-weight: 600;
     }
 
     .slot[aria-disabled="true"] {
-      opacity: .45;
+      opacity: .4;
       cursor: not-allowed;
     }
 
     .slot.selected {
-      outline: 3px solid rgba(17,24,39,.2);
-      border-color: #111827;
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220,38,38,.15);
     }
 
+    /* ===== MESSAGE ===== */
     .ok {
       background: #ecfdf5;
       border: 1px solid #10b98133;
-      padding: 10px 12px;
+      padding: 12px;
       border-radius: 12px;
+      margin-bottom: 12px;
     }
 
     .err {
       background: #fef2f2;
       border: 1px solid #ef444433;
-      padding: 10px 12px;
+      padding: 12px;
       border-radius: 12px;
+      margin-bottom: 12px;
     }
 
+    /* ===== MOBILE ===== */
     @media (max-width: 560px) {
       .row { grid-template-columns: 1fr; }
       .slots { grid-template-columns: repeat(3, 1fr); }
+      .page-title { font-size: 26px; }
     }
   </style>
 </head>
@@ -163,15 +190,14 @@
         Chọn dịch vụ, ngày và giờ trống. Sau khi đặt, vui lòng đến đúng giờ.
       </p>
 
-      <div class="page-note-wrap">
-        <div class="page-note">
-          ⏰ Có thể trễ hơn 15 phút so với thời gian đã đặt lịch
-        </div>
+      <div class="badge-wrap">
+        <div class="badge badge-warning">⏰ Có thể trễ tối đa 15 phút</div>
+        <div class="badge badge-success">🎉 Ưu tiên khách đặt sớm</div>
       </div>
 
       <div id="msg"></div>
 
-      <div class="row" style="margin-top:12px;">
+      <div class="row">
         <div>
           <label>Dịch vụ</label>
           <select id="service"></select>
@@ -185,9 +211,7 @@
       <div style="margin-top:12px;">
         <label>Giờ trống</label>
         <div id="slots" class="slots"></div>
-        <div class="muted" style="margin-top:6px;">
-          * Chỉ hiển thị giờ còn trống.
-        </div>
+        <div class="muted" style="margin-top:6px;">* Chỉ hiển thị giờ còn trống.</div>
       </div>
 
       <div class="row" style="margin-top:12px;">
@@ -212,8 +236,8 @@
         </div>
       </div>
 
-      <div style="margin-top:14px;">
-        <button id="submit" class="btn">Đặt lịch</button>
+      <div style="margin-top:16px;">
+        <button id="submit" class="btn">Đặt lịch ngay</button>
       </div>
     </div>
 
@@ -222,7 +246,6 @@
     </p>
   </div>
 
-  <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
