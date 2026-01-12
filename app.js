@@ -1,306 +1,382 @@
-// ====== 1) CẤU HÌNH SUPABASE ======
-const SUPABASE_URL = "https://zaqruavtxyjxwpfdoolo.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_sn53kFJuZmB2dHsBaM7DnQ_H5cQe5Pc";
+/* app.js — Multi-service + Slots grid + Toast popup + No-time option */
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+(() => {
+  // ====== CONFIG (điền đúng) ======
+  const SUPABASE_URL =
+    window.SUPABASE_URL || "https://zaqruavtxyjxwpfdoolo.supabase.co";
+  const SUPABASE_ANON_KEY =
+    window.SUPABASE_ANON_KEY || "sb_publishable_sn53kFJuZmB2dHsBaM7DnQ_H5cQe5Pc";
 
-// ====== 2) Helpers ======
-const $ = (id) => document.getElementById(id);
+  // Business hours
+  const OPEN_HOUR = 8;
+  const CLOSE_HOUR = 21;
+  const STEP_MINUTES = 30;
 
-function pad2(n){ return String(n).padStart(2,"0"); }
+  // ====== Helpers ======
+  const $ = (id) => document.getElementById(id);
+  const pad2 = (n) => String(n).padStart(2, "0");
 
-// Convert date (YYYY-MM-DD) + time (HH:mm) in Asia/Ho_Chi_Minh to ISO timestamptz
-function localVNToISO(dateYMD, timeHM) {
-  return `${dateYMD}T${timeHM}:00+07:00`;
-}
-
-function normalizePhone(p) {
-  return (p || "").replace(/\s+/g, "").trim();
-}
-
-// ====== 3) POPUP MODAL (thay cho #msg) ======
-function modalEls() {
-  return {
-    backdrop: $("modalBackdrop"),
-    box: $("modalBox"),
-    title: $("modalTitle"),
-    body: $("modalBody"),
-    btnOk: $("modalOk"),
-    btnClose: $("modalClose"),
-  };
-}
-
-function showPopup(type, title, text) {
-  const { backdrop, box, title: elTitle, body, btnOk, btnClose } = modalEls();
-  if (!backdrop || !box || !elTitle || !body) {
-    // fallback nếu thiếu modal trong HTML
-    alert(`${title}\n\n${text}`);
-    return;
+  function assertDom() {
+    const required = ["service", "date", "slots", "fullName", "phone", "qty", "note", "submit"];
+    const missing = required.filter((id) => !$(id));
+    if (missing.length) {
+      console.error("Thiếu ID element trong index.html:", missing.join(", "));
+      toast("err", "Thiếu element", "Bạn đang thiếu ID trong index.html:\n" + missing.join(", "));
+      return false;
+    }
+    return true;
   }
 
-  box.classList.remove("modal-ok", "modal-err", "modal-info");
-  box.classList.add(type === "ok" ? "modal-ok" : type === "err" ? "modal-err" : "modal-info");
-
-  elTitle.textContent = title || "Thông báo";
-  body.textContent = text || "";
-
-  backdrop.style.display = "flex";
-  backdrop.setAttribute("aria-hidden", "false");
-
-  const close = () => {
-    backdrop.style.display = "none";
-    backdrop.setAttribute("aria-hidden", "true");
-  };
-
-  btnOk?.onclick = close;
-  btnClose?.onclick = close;
-
-  // bấm nền để đóng
-  backdrop.onclick = (e) => {
-    if (e.target === backdrop) close();
-  };
-
-  // ESC để đóng
-  window.onkeydown = (e) => {
-    if (e.key === "Escape") close();
-  };
-}
-
-// ====== 4) UI State ======
-let services = [];
-let settings = null;
-let selectedTime = null; // "HH:mm"
-
-function setSelectedTime(timeHM) {
-  selectedTime = timeHM;
-  [...document.querySelectorAll(".slot")].forEach(btn => {
-    btn.classList.toggle("selected", btn.dataset.time === timeHM);
-  });
-}
-
-// Lấy danh sách service_id đã chọn (multi-select)
-function getSelectedServiceIds() {
-  const sel = $("service");
-  if (!sel) return [];
-  return [...sel.selectedOptions].map(o => Number(o.value)).filter(n => Number.isFinite(n));
-}
-
-function formatServiceLabel(s) {
-  // Ẩn duration/price nếu null
-  const parts = [s.name];
-  if (s.duration_minutes !== null && s.duration_minutes !== undefined) {
-    parts.push(`${s.duration_minutes}p`);
-  }
-  if (s.price_vnd !== null && s.price_vnd !== undefined) {
-    parts.push(`${Number(s.price_vnd).toLocaleString("vi-VN")}đ`);
-  }
-  return parts.join(" • ");
-}
-
-// ====== 5) Load services + settings ======
-async function loadServices() {
-  const { data, error } = await sb.from("services")
-    .select("id,name,duration_minutes,price_vnd,sort_order,is_active")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-
-  if (error) throw error;
-  services = data || [];
-
-  const sel = $("service");
-  sel.innerHTML = "";
-
-  for (const s of services) {
-    const opt = document.createElement("option");
-    opt.value = s.id;
-    opt.textContent = formatServiceLabel(s);
-    sel.appendChild(opt);
-  }
-
-  // auto select first
-  if (sel.options.length > 0) sel.options[0].selected = true;
-}
-
-async function loadSettings() {
-  const { data, error } = await sb.from("business_settings")
-    .select("timezone,open_time,close_time,slot_minutes,max_qty,closed_weekdays")
-    .eq("id", 1)
-    .single();
-
-  if (error) throw error;
-  settings = data;
-  $("qty").max = String(settings.max_qty ?? 4);
-}
-
-function timeRangeSlots(openTime, closeTime, slotMinutes) {
-  const [oh, om] = openTime.split(":").map(Number);
-  const [ch, cm] = closeTime.split(":").map(Number);
-
-  const start = oh * 60 + om;
-  const end = ch * 60 + cm;
-  const step = slotMinutes;
-
-  const slots = [];
-  for (let m = start; m + step <= end; m += step) {
-    const hh = Math.floor(m / 60);
-    const mm = m % 60;
-    slots.push(`${pad2(hh)}:${pad2(mm)}`);
-  }
-  return slots;
-}
-
-// ====== 6) Availability (RPC) ======
-async function loadBookedSlots(dateYMD) {
-  const { data, error } = await sb.rpc("get_booked_slots", { date_ymd: dateYMD });
-  if (error) throw error;
-
-  const booked = new Set();
-  for (const row of (data || [])) {
-    const d = new Date(row.start_at);
-    const hm = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
-    booked.add(hm);
-  }
-  return booked;
-}
-
-async function renderSlots() {
-  const dateYMD = $("date").value;
-  if (!dateYMD || !settings) return;
-
-  // closed weekdays (0=Sun..6=Sat)
-  const weekday = new Date(`${dateYMD}T00:00:00+07:00`).getDay();
-  if ((settings.closed_weekdays || []).includes(weekday)) {
-    $("slots").innerHTML = `<div class="muted">Ngày này tiệm nghỉ.</div>`;
-    selectedTime = null;
-    return;
-  }
-
-  $("slots").innerHTML = `<div class="muted">Đang tải...</div>`;
-  selectedTime = null;
-
-  const all = timeRangeSlots(settings.open_time, settings.close_time, settings.slot_minutes);
-  const booked = await loadBookedSlots(dateYMD);
-
-  const wrap = $("slots");
-  wrap.innerHTML = "";
-
-  for (const t of all) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "slot";
-    btn.dataset.time = t;
-    btn.textContent = t;
-
-    const isBooked = booked.has(t);
-    btn.setAttribute("aria-disabled", isBooked ? "true" : "false");
-    btn.disabled = isBooked;
-
-    btn.addEventListener("click", () => setSelectedTime(t));
-    wrap.appendChild(btn);
-  }
-
-  if (!wrap.children.length) {
-    wrap.innerHTML = `<div class="muted">Không có slot.</div>`;
-  }
-}
-
-// ====== 7) Create booking (RPC) ======
-async function submitBooking() {
-  const btn = $("submit");
-  btn.disabled = true;
-  const oldText = btn.textContent;
-  btn.textContent = "Đang đặt...";
-
-  try {
-    const selectedIds = getSelectedServiceIds();
-    const dateYMD = $("date").value;
-    const full_name = $("fullName").value.trim();
-    const phone = normalizePhone($("phone").value);
-    const qty = Number($("qty").value || 1);
-    const noteRaw = $("note").value.trim();
-
-    if (!selectedIds.length) {
-      showPopup("err", "Thiếu thông tin", "Vui lòng chọn ít nhất 1 dịch vụ.");
+  // ====== Toast popup ======
+  function toast(type, title, message) {
+    const overlay = $("toastOverlay");
+    const box = $("toastBox");
+    const t = $("toastTitle");
+    const m = $("toastMsg");
+    const close = $("toastClose");
+    if (!overlay || !box || !t || !m || !close) {
+      // fallback (nếu thiếu toast UI)
+      alert((title ? title + "\n\n" : "") + (message || ""));
       return;
     }
-    if (!dateYMD) {
-      showPopup("err", "Thiếu thông tin", "Vui lòng chọn ngày.");
-      return;
+    box.classList.remove("ok", "err");
+    box.classList.add(type === "ok" ? "ok" : "err");
+    t.textContent = title || (type === "ok" ? "Thành công" : "Có lỗi");
+    m.textContent = message || "";
+    overlay.style.display = "flex";
+    close.onclick = () => (overlay.style.display = "none");
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = "none"; };
+  }
+
+  // ====== Mini fireworks ======
+  function fireworks() {
+    const root = document.createElement("div");
+    root.className = "fw";
+    const icons = ["🎆", "✨", "🧨", "🎇"];
+    const n = 18;
+    for (let i = 0; i < n; i++) {
+      const sp = document.createElement("span");
+      sp.textContent = icons[Math.floor(Math.random() * icons.length)];
+      const dx = (Math.random() * 360 - 180).toFixed(0) + "px";
+      const dy = (Math.random() * 280 - 220).toFixed(0) + "px";
+      sp.style.setProperty("--dx", dx);
+      sp.style.setProperty("--dy", dy);
+      sp.style.opacity = "1";
+      root.appendChild(sp);
     }
-    if (!selectedTime) {
-      showPopup("err", "Thiếu thông tin", "Vui lòng chọn giờ.");
-      return;
+    document.body.appendChild(root);
+    setTimeout(() => root.remove(), 1000);
+  }
+
+  function formatServiceLabel(svc) {
+    // Ẩn duration/price nếu NULL
+    const parts = [svc.name];
+    if (svc.duration_minutes !== null && svc.duration_minutes !== undefined) {
+      parts.push(`${svc.duration_minutes}p`);
     }
-    if (!full_name) {
-      showPopup("err", "Thiếu thông tin", "Vui lòng nhập họ và tên.");
-      return;
+    if (svc.price_vnd !== null && svc.price_vnd !== undefined) {
+      parts.push(`${Number(svc.price_vnd).toLocaleString("vi-VN")}đ`);
     }
-    if (!phone || phone.length < 9) {
-      showPopup("err", "Thiếu thông tin", "Vui lòng nhập số điện thoại hợp lệ.");
-      return;
+    return parts.join(" • ");
+  }
+
+  function parseYMD(ymd) {
+    const [y, m, d] = (ymd || "").split("-").map((x) => parseInt(x, 10));
+    if (!y || !m || !d) return null;
+    return { y, m, d };
+  }
+
+  function localDateToISO(ymd, hhmm) {
+    const p = parseYMD(ymd);
+    if (!p) return null;
+    const [hh, mm] = (hhmm || "00:00").split(":").map((x) => parseInt(x, 10));
+    const dt = new Date(p.y, p.m - 1, p.d, hh || 0, mm || 0, 0, 0);
+    return dt.toISOString();
+  }
+
+  function buildSlots() {
+    const slots = [];
+    for (let h = OPEN_HOUR; h <= CLOSE_HOUR; h++) {
+      for (let m = 0; m < 60; m += STEP_MINUTES) {
+        if (h === CLOSE_HOUR && m > 0) continue; // stop exactly at 21:00
+        slots.push(`${pad2(h)}:${pad2(m)}`);
+      }
     }
-    if (!qty || qty < 1) {
-      showPopup("err", "Thiếu thông tin", "Số lượng không hợp lệ.");
+    return slots;
+  }
+
+  function renderSlotButtons({ container, allSlots, bookedSet, selectedTime, onPick }) {
+    container.innerHTML = "";
+
+    // Nút "Không chọn giờ" — luôn hiển thị, chiếm nguyên hàng
+    const btnNo = document.createElement("div");
+    btnNo.className = "slot wide" + (selectedTime === null ? " selected" : "");
+    btnNo.textContent = "Không chọn giờ";
+    btnNo.addEventListener("click", () => onPick(null));
+    container.appendChild(btnNo);
+
+    allSlots.forEach((t) => {
+      const div = document.createElement("div");
+      div.className = "slot" + (selectedTime === t ? " selected" : "");
+      div.textContent = t;
+
+      const isBooked = bookedSet.has(t);
+      if (isBooked) {
+        div.setAttribute("aria-disabled", "true");
+      }
+      div.addEventListener("click", () => {
+        if (isBooked) return;
+        onPick(t);
+      });
+      container.appendChild(div);
+    });
+  }
+
+  // ====== MAIN ======
+  document.addEventListener("DOMContentLoaded", async () => {
+    if (!assertDom()) return;
+
+    if (!window.supabase?.createClient) {
+      toast("err", "Thiếu thư viện Supabase", "Bạn chưa load được @supabase/supabase-js. Kiểm tra script CDN trong index.html.");
       return;
     }
 
-    // Primary service = service đầu tiên (vì RPC hiện tại chỉ nhận 1 service_id)
-    const primaryServiceId = selectedIds[0];
-    const selectedNames = selectedIds
-      .map(id => services.find(s => s.id === id)?.name)
-      .filter(Boolean);
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const start_at = localVNToISO(dateYMD, selectedTime);
+    const elService = $("service"); // multiple select
+    const elDate = $("date");
+    const elSlots = $("slots");
+    const elFullName = $("fullName");
+    const elPhone = $("phone");
+    const elQty = $("qty");
+    const elNote = $("note");
+    const btnSubmit = $("submit");
 
-    // Gộp nhiều dịch vụ vào note để admin xem được
-    const serviceLine = selectedNames.length ? `Dịch vụ: ${selectedNames.join(", ")}` : "";
-    const note = [serviceLine, noteRaw].filter(Boolean).join("\n");
+    let services = [];
+    let selectedTime = null; // null = "Không chọn giờ"
+    const allSlots = buildSlots();
 
-    const { data, error } = await sb.rpc("create_booking", {
-      p_start_at: start_at,
-      p_service_id: primaryServiceId,
-      p_qty: qty,
-      p_note: note,
-      p_full_name: full_name,
-      p_phone: phone
+    function getSelectedServiceIds() {
+      return Array.from(elService.selectedOptions || []).map((o) => Number(o.value)).filter(Boolean);
+    }
+
+    function getSelectedServices() {
+      const ids = new Set(getSelectedServiceIds());
+      return services.filter((s) => ids.has(Number(s.id)));
+    }
+
+    async function loadServices() {
+      const { data, error } = await supabase
+        .from("services")
+        .select("id,name,duration_minutes,price_vnd,is_active,sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true });
+
+      if (error) {
+        console.error("load services error:", error);
+        toast("err", "Lỗi tải dịch vụ", error.message || "Không tải được danh sách dịch vụ.");
+        return;
+      }
+
+      services = Array.isArray(data) ? data : [];
+      elService.innerHTML = "";
+      services.forEach((svc) => {
+        const opt = document.createElement("option");
+        opt.value = String(svc.id);
+        opt.textContent = formatServiceLabel(svc);
+        elService.appendChild(opt);
+      });
+    }
+
+    async function loadBookedTimesForDate(ymd) {
+      const booked = new Set();
+      const p = parseYMD(ymd);
+      if (!p) return booked;
+
+      // local day range -> ISO
+      const startISO = new Date(p.y, p.m - 1, p.d, 0, 0, 0, 0).toISOString();
+      const endISO = new Date(p.y, p.m - 1, p.d, 23, 59, 59, 999).toISOString();
+
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("start_at, time_selected")
+        .gte("start_at", startISO)
+        .lte("start_at", endISO);
+
+      if (error) {
+        console.warn("Không tải được lịch bận (SELECT bị RLS?)", error);
+        // Không chặn UI — vẫn cho đặt, chỉ không disable slot
+        return booked;
+      }
+
+      (data || []).forEach((row) => {
+        if (!row?.start_at) return;
+        // Nếu bản ghi là "không chọn giờ" (time_selected=false) thì không block slot
+        if (row.time_selected === false) return;
+
+        const dt = new Date(row.start_at);
+        const t = `${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`;
+        if (t !== "00:00") booked.add(t);
+      });
+
+      return booked;
+    }
+
+    async function refreshSlots() {
+      const ymd = elDate.value;
+      const booked = ymd ? await loadBookedTimesForDate(ymd) : new Set();
+
+      renderSlotButtons({
+        container: elSlots,
+        allSlots,
+        bookedSet: booked,
+        selectedTime,
+        onPick: (t) => {
+          selectedTime = t;
+          refreshSlots();
+        },
+      });
+    }
+
+    // ===== Events =====
+    elService.addEventListener("change", async () => {
+      // khi đổi dịch vụ, không cần reset giờ, nhưng bạn có thể reset nếu muốn:
+      // selectedTime = null;
+      await refreshSlots();
     });
 
-    if (error) throw error;
+    elDate.addEventListener("change", async () => {
+      selectedTime = null;
+      await refreshSlots();
+    });
 
-    showPopup("ok", "Đặt lịch thành công", `✅ Đặt lịch thành công!\nMã lịch: ${data}\n\n${serviceLine}\nNgày: ${dateYMD}\nGiờ: ${selectedTime}`);
+    btnSubmit.addEventListener("click", async () => {
+      try {
+        const ymd = elDate.value;
+        const fullName = (elFullName.value || "").trim();
+        const phone = (elPhone.value || "").trim();
+        const qty = Number(elQty.value || 1);
+        const userNote = (elNote.value || "").trim();
 
-    await renderSlots();
-    $("note").value = "";
-  } catch (e) {
-    const msg = (e?.message || "").includes("Slot already booked")
-      ? "Giờ này vừa có người đặt trước. Vui lòng chọn giờ khác."
-      : `Có lỗi: ${e.message || e}`;
-    showPopup("err", "Đặt lịch thất bại", msg);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = oldText;
-  }
-}
+        const selectedSvcs = getSelectedServices();
+        if (!selectedSvcs.length) {
+          toast("err", "Thiếu dịch vụ", "Bạn chưa chọn dịch vụ nào.");
+          return;
+        }
+        if (!ymd) {
+          toast("err", "Thiếu ngày", "Bạn chưa chọn ngày.");
+          return;
+        }
+        if (!fullName) {
+          toast("err", "Thiếu họ tên", "Vui lòng nhập họ và tên.");
+          return;
+        }
+        if (!phone) {
+          toast("err", "Thiếu số điện thoại", "Vui lòng nhập số điện thoại.");
+          return;
+        }
+        if (!Number.isFinite(qty) || qty <= 0) {
+          toast("err", "Số lượng không hợp lệ", "Vui lòng nhập số lượng >= 1.");
+          return;
+        }
 
-// ====== 8) Init ======
-(async function init(){
-  try {
-    await loadSettings();
+        // start_at + time_selected
+        const timeSelected = selectedTime !== null;
+        const startISO = localDateToISO(ymd, timeSelected ? selectedTime : "00:00");
+        if (!startISO) {
+          toast("err", "Ngày/giờ không hợp lệ", "Vui lòng chọn lại ngày/giờ.");
+          return;
+        }
+
+        // service_id: lấy dịch vụ đầu tiên làm chính
+        const mainService = selectedSvcs[0];
+
+        // duration_minutes: tổng (bỏ qua null); nếu tất cả null -> null
+        const durations = selectedSvcs.map(s => s.duration_minutes).filter(v => v !== null && v !== undefined);
+        const durationToSave = durations.length ? durations.reduce((a,b)=>a+Number(b||0),0) : null;
+
+        // Note: ghi danh sách dịch vụ + ghi chú + đánh dấu không chọn giờ
+        const svcNames = selectedSvcs.map(s => s.name).join(", ");
+        const noteParts = [];
+        noteParts.push(`DỊCH VỤ: ${svcNames}`);
+        if (!timeSelected) noteParts.push("[KHÔNG CHỌN GIỜ]");
+        if (userNote) noteParts.push(userNote);
+        const noteToSave = noteParts.join(" | ");
+
+        // Insert bookings
+        const { data: bookingRows, error: bookingErr } = await supabase
+          .from("bookings")
+          .insert([{
+            service_id: Number(mainService.id),
+            start_at: startISO,
+            duration_minutes: durationToSave,   // null OK nếu cột cho phép
+            qty,
+            note: noteToSave || null,
+            time_selected: timeSelected,        // ✅ cột mới của bạn
+          }])
+          .select("id")
+          .limit(1);
+
+        if (bookingErr) {
+          console.error("Insert bookings error:", bookingErr);
+
+          // 23505 = unique violation
+          if (bookingErr.code === "23505") {
+            toast("err", "Giờ này đã có người đặt", "Vui lòng chọn giờ khác.");
+          } else if (bookingErr.code === "42501" || bookingErr.status === 401 || bookingErr.status === 403) {
+            toast("err", "Bị chặn quyền (RLS)", "Bạn cần tạo policy INSERT cho public/authenticated ở bảng bookings + booking_customers.");
+          } else {
+            toast("err", "Lỗi đặt lịch", bookingErr.message || "Không đặt được lịch.");
+          }
+          return;
+        }
+
+        const bookingId = bookingRows?.[0]?.id;
+        if (!bookingId) {
+          toast("err", "Không tạo được bookingId", "Đặt lịch không thành công.");
+          return;
+        }
+
+        // Insert booking_customers
+        const { error: custErr } = await supabase
+          .from("booking_customers")
+          .insert([{ booking_id: bookingId, full_name: fullName, phone }]);
+
+        if (custErr) {
+          console.error("Insert booking_customers error:", custErr);
+          toast("err", "Lỗi lưu thông tin khách", custErr.message || "Không lưu được thông tin khách.");
+          return;
+        }
+
+        fireworks();
+        toast("ok", "Đặt lịch thành công 🎉", "Cảm ơn bạn! Hẹn gặp bạn tại CHIP NAILS.");
+
+        // Reset input (giữ dịch vụ nếu bạn muốn: comment dòng reset services)
+        // elService.selectedIndex = -1; // (không nên dùng với multiple)
+        Array.from(elService.options).forEach(o => o.selected = false);
+        selectedTime = null;
+
+        elFullName.value = "";
+        elPhone.value = "";
+        elQty.value = "1";
+        elNote.value = "";
+
+        await refreshSlots();
+      } catch (e) {
+        console.error(e);
+        toast("err", "Lỗi không xác định", e?.message || String(e));
+      }
+    });
+
+    // ===== Init =====
     await loadServices();
 
-    // default date today VN
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = pad2(today.getMonth()+1);
-    const d = pad2(today.getDate());
-    $("date").value = `${y}-${m}-${d}`;
-
-    $("date").addEventListener("change", renderSlots);
-    $("service").addEventListener("change", () => {}); // multi select
-    $("submit").addEventListener("click", submitBooking);
-
-    await renderSlots();
-  } catch (e) {
-    showPopup("err", "Không tải được dữ liệu", `Kiểm tra Supabase URL/Key.\nChi tiết: ${e.message || e}`);
-  }
+    // default date today
+    if (!elDate.value) {
+      const now = new Date();
+      elDate.value = `${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}`;
+    }
+    await refreshSlots();
+  });
 })();
