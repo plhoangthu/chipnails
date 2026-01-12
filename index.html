@@ -3,126 +3,155 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Đặt lịch Nails</title>
+  <title>ĐẶT LỊCH CHIP NAILS - TẾT 2026</title>
 
   <style>
-    body { font-family: system-ui, Arial; margin: 0; background:#f6f7fb; }
-    .wrap { max-width: 720px; margin: 24px auto; padding: 16px; }
-    .card { background:#fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.06); }
-    h1 { margin: 0 0 12px; font-size: 22px; }
-    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-    label { display:block; font-size: 13px; color:#333; margin-bottom: 6px; }
-    input, select, textarea, button {
-      width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
-      border: 1px solid #d6d9e0; font-size: 15px; background:#fff;
+    :root{
+      --bg:#f6f7fb;
+      --card:#fff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:#d6d9e0;
+      --primary:#111827;
+      --danger:#ef4444;
+    }
+    body{ font-family: system-ui, Arial; margin:0; background:var(--bg); color:var(--text); overflow-x:hidden; }
+    .wrap{ max-width: 760px; margin: 22px auto; padding: 16px; position:relative; }
+    .card{
+      background:var(--card); border-radius: 16px; padding: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.08);
+      position:relative; z-index:2;
     }
 
-    /* multi select đẹp hơn */
-    select[multiple]{
-      min-height: 140px;
-      padding: 8px;
+    /* ===== Header ===== */
+    .page-title{
+      text-align:center; font-weight: 900; font-size: 26px; letter-spacing:.4px;
+      margin: 2px 0 6px;
     }
-    .hint { color:#6b7280; font-size:12px; margin-top:6px; }
+    .page-subtitle{
+      text-align:center; font-size: 14px; color:var(--muted); margin: 0 0 6px;
+    }
+    .page-note{
+      text-align:center; font-size: 13px; color: var(--danger); font-weight: 650;
+      margin: 0 0 14px;
+    }
+    .tet-icons{
+      text-align:center; margin: 4px 0 10px; font-size: 18px;
+      user-select:none;
+    }
 
-    textarea { min-height: 86px; resize: vertical; }
-    button { border: 0; cursor: pointer; font-weight: 650; padding: 12px; }
-    .btn { background: #111827; color:#fff; }
-    .muted { color:#6b7280; font-size: 13px; }
+    /* ===== Form ===== */
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label{ display:block; font-size: 13px; color:#333; margin-bottom: 6px; }
+    input, select, textarea, button{
+      width:100%; box-sizing:border-box; padding: 10px 12px; border-radius: 12px;
+      border:1px solid var(--border); font-size: 15px; background:#fff;
+    }
+    select[multiple]{ min-height: 140px; }
+    .hint{ font-size: 12.5px; color: var(--muted); margin-top: 6px; }
 
-    .slots { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
-    .slot { padding: 10px; border-radius: 12px; border:1px solid #d6d9e0; background:#fff; cursor:pointer; text-align:center; }
+    button{ border:0; cursor:pointer; font-weight:800; padding: 13px; }
+    .btn{ background: var(--primary); color:#fff; border-radius: 14px; }
+
+    .muted{ color:var(--muted); font-size: 13px; }
+
+    /* ===== Slots grid (4 cột) ===== */
+    .slots{ display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+    .slot{
+      padding: 10px; border-radius: 12px; border:1px solid var(--border);
+      background:#fff; cursor:pointer; text-align:center; user-select:none;
+    }
     .slot[aria-disabled="true"]{ opacity:.45; cursor:not-allowed; }
-    .slot.selected{ outline: 3px solid rgba(17,24,39,.2); border-color:#111827; }
+    .slot.selected{ outline: 3px solid rgba(17,24,39,.18); border-color: var(--primary); }
+    .slot.wide{ grid-column: 1 / -1; font-weight:800; }
 
     @media (max-width: 560px){
       .row{ grid-template-columns: 1fr; }
       .slots{ grid-template-columns: repeat(3, 1fr); }
     }
 
-    /* ===== POPUP MODAL ===== */
-    .modal-backdrop{
-      position: fixed; inset: 0;
-      background: rgba(17,24,39,.55);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      padding: 16px;
+    /* ===== Toast modal (popup) ===== */
+    .toast-overlay{
+      position: fixed; inset:0; display:none; align-items:center; justify-content:center;
+      background: rgba(17,24,39,.45); z-index: 50;
+      padding: 18px;
     }
-    .modal{
-      width: 100%;
-      max-width: 520px;
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 18px 60px rgba(0,0,0,.25);
-      overflow: hidden;
+    .toast{
+      width: min(520px, 92vw);
+      background:#fff; border-radius: 16px; padding: 14px 14px 12px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.25);
+      border: 1px solid rgba(0,0,0,.08);
     }
-    .modal-header{
-      display:flex; align-items:center; justify-content: space-between;
-      padding: 12px 14px;
-      border-bottom: 1px solid #eef0f4;
+    .toast-title{ font-weight: 900; margin:0 0 6px; }
+    .toast-msg{ margin:0; color:#111827; line-height: 1.45; white-space: pre-line; }
+    .toast-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top: 12px; }
+    .toast-btn{
+      border:1px solid var(--border); background:#fff; border-radius: 12px;
+      padding: 10px 12px; font-weight: 800; cursor:pointer;
     }
-    .modal-title{
-      font-weight: 800;
-      font-size: 14px;
-      margin: 0;
+    .toast.ok .toast-title{ color:#065f46; }
+    .toast.err .toast-title{ color:#991b1b; }
+
+    /* ===== Hoa mai rơi ===== */
+    .petal{
+      position: fixed; top:-12vh;
+      font-size: 18px;
+      opacity: .95;
+      z-index: 1;
+      pointer-events:none;
+      animation-name: fall, sway;
+      animation-timing-function: linear, ease-in-out;
+      animation-iteration-count: infinite, infinite;
     }
-    .modal-close{
-      border: none;
-      background: transparent;
+    @keyframes fall{
+      to{ transform: translateY(115vh) rotate(360deg); }
+    }
+    @keyframes sway{
+      0%,100%{ margin-left: 0; }
+      50%{ margin-left: 30px; }
+    }
+
+    /* ===== Fireworks (khi đặt thành công) ===== */
+    .fw{
+      position: fixed; left:50%; top:55%;
+      transform: translate(-50%,-50%);
+      z-index: 60; pointer-events:none;
+    }
+    .fw span{
+      position:absolute;
       font-size: 22px;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0 6px;
-      color: #6b7280;
+      animation: boom 900ms ease-out forwards;
+      opacity: 0;
     }
-    .modal-body{
-      padding: 14px;
-      font-size: 14px;
-      color: #111827;
-      white-space: pre-line;
+    @keyframes boom{
+      0%{ transform: translate(0,0) scale(.6); opacity:1; }
+      100%{ transform: translate(var(--dx), var(--dy)) scale(1.1); opacity:0; }
     }
-    .modal-actions{
-      padding: 12px 14px;
-      border-top: 1px solid #eef0f4;
-      display:flex;
-      justify-content: flex-end;
-      gap: 10px;
-    }
-    .btn-secondary{
-      background:#e5e7eb; color:#111827;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-weight: 700;
-      border: none;
-      cursor: pointer;
-    }
-    .btn-primary{
-      background:#111827; color:#fff;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-weight: 800;
-      border: none;
-      cursor: pointer;
-    }
-    .modal-ok{ border-left: 6px solid #10b981; }
-    .modal-err{ border-left: 6px solid #ef4444; }
-    .modal-info{ border-left: 6px solid #3b82f6; }
   </style>
 </head>
 
 <body>
+  <!-- Toast popup -->
+  <div id="toastOverlay" class="toast-overlay" role="dialog" aria-modal="true">
+    <div id="toastBox" class="toast">
+      <h3 id="toastTitle" class="toast-title"></h3>
+      <p id="toastMsg" class="toast-msg"></p>
+      <div class="toast-actions">
+        <button id="toastClose" class="toast-btn">Đóng</button>
+      </div>
+    </div>
+  </div>
+
   <div class="wrap">
     <div class="card">
-      <h1>Đặt lịch làm Nails</h1>
-      <p class="muted">Chọn dịch vụ, ngày và giờ trống. Sau khi đặt, vui lòng đến đúng giờ.</p>
+      <div class="tet-icons">🌸🎆🧧🌼</div>
+      <h1 class="page-title">ĐẶT LỊCH TẠI CHIP NAILS DỊP TẾT 2026</h1>
+      <p class="page-subtitle">Chọn dịch vụ, ngày và giờ trống. Sau khi đặt, vui lòng đến đúng giờ.</p>
+      <p class="page-note">* Có thể trễ hơn 15 phút so với thời gian đã đặt lịch</p>
 
-      <!-- Dòng 1: Dịch vụ + Ngày -->
       <div class="row" style="margin-top:12px;">
         <div>
           <label>Dịch vụ (chọn nhiều)</label>
-          <!-- Đổi thành multiple để chọn nhiều dịch vụ -->
           <select id="service" multiple></select>
           <div class="hint">Mẹo: giữ Ctrl (Windows) / Cmd (Mac) để chọn nhiều dòng.</div>
         </div>
@@ -132,14 +161,12 @@
         </div>
       </div>
 
-      <!-- Chọn giờ -->
       <div style="margin-top:12px;">
         <label>Giờ trống</label>
         <div id="slots" class="slots"></div>
         <div class="muted" style="margin-top:6px;">* Chỉ hiển thị giờ còn trống.</div>
       </div>
 
-      <!-- Thông tin khách -->
       <div class="row" style="margin-top:12px;">
         <div>
           <label>Họ và tên</label>
@@ -151,7 +178,6 @@
         </div>
       </div>
 
-      <!-- Số lượng + ghi chú -->
       <div class="row" style="margin-top:12px;">
         <div>
           <label>Số lượng</label>
@@ -169,22 +195,28 @@
     </div>
   </div>
 
-  <!-- POPUP MODAL -->
-  <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
-    <div id="modalBox" class="modal modal-info" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal-header">
-        <div id="modalTitle" class="modal-title">Thông báo</div>
-        <button id="modalClose" class="modal-close" aria-label="Đóng">×</button>
-      </div>
-      <div id="modalBody" class="modal-body"></div>
-      <div class="modal-actions">
-        <button id="modalOk" class="btn-primary">OK</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Supabase -->
+  <!-- Supabase JS CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
+
+  <script>
+    // Tạo hoa mai rơi (nền)
+    (function(){
+      const count = 22;
+      const icons = ["🌼","🌸","✨"];
+      for(let i=0;i<count;i++){
+        const s=document.createElement("span");
+        s.className="petal";
+        s.textContent = icons[Math.floor(Math.random()*icons.length)];
+        s.style.left = Math.random()*100 + "vw";
+        const fallDur = 8 + Math.random()*6;
+        const swayDur = 2.5 + Math.random()*2.5;
+        s.style.animationDuration = fallDur+"s, "+swayDur+"s";
+        s.style.animationDelay = (-Math.random()*fallDur)+"s, "+(-Math.random()*swayDur)+"s";
+        s.style.fontSize = (14 + Math.random()*12) + "px";
+        document.body.appendChild(s);
+      }
+    })();
+  </script>
 </body>
 </html>
