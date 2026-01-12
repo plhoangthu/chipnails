@@ -127,6 +127,160 @@
       0%{ transform: translate(0,0) scale(.6); opacity:1; }
       100%{ transform: translate(var(--dx), var(--dy)) scale(1.1); opacity:0; }
     }
+    /* ===== TẾT THEME ===== */
+.card{
+  border: 1px solid rgba(245, 158, 11, .35);
+  background:
+    radial-gradient(1200px 300px at 50% -20%, rgba(245,158,11,.20), transparent 60%),
+    radial-gradient(900px 260px at 20% 0%, rgba(239,68,68,.12), transparent 55%),
+    #fff;
+}
+
+.page-title{
+  background: linear-gradient(90deg, #111827, #b91c1c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tet-icons{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  padding: 6px 0 2px;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.12));
+}
+
+/* ===== SERVICE CHECKLIST UI ===== */
+.service-panel{
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(245,158,11,.10), rgba(239,68,68,.06));
+}
+
+.service-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom: 8px;
+}
+
+.service-title{
+  font-weight: 900;
+  color: #111827;
+}
+
+.service-count{
+  font-size: 12.5px;
+  color: #b91c1c;
+  font-weight: 800;
+  background: rgba(239,68,68,.10);
+  border: 1px solid rgba(239,68,68,.18);
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.service-chips{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-height: 10px;
+}
+
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px solid rgba(245,158,11,.35);
+  background: rgba(245,158,11,.12);
+  color:#111827;
+}
+
+.chip button{
+  border:0;
+  background: transparent;
+  cursor:pointer;
+  font-weight: 900;
+  padding: 0;
+  width: auto;
+  color:#b91c1c;
+}
+
+.service-list{
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.service-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(209,213,219,.9);
+  background:#fff;
+  cursor:pointer;
+  user-select:none;
+  transition: transform .06s ease, box-shadow .15s ease, border-color .15s ease;
+}
+
+.service-item:hover{
+  box-shadow: 0 8px 18px rgba(0,0,0,.06);
+}
+
+.service-item:active{
+  transform: scale(.99);
+}
+
+.service-left{
+  display:flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.service-name{
+  font-weight: 900;
+  color:#111827;
+}
+
+.service-meta{
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.service-tick{
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border: 1px solid rgba(209,213,219,.9);
+  color: transparent; /* mặc định ẩn */
+  background:#fff;
+  font-weight: 900;
+}
+
+.service-item.selected{
+  border-color: rgba(245,158,11,.65);
+  box-shadow: 0 10px 22px rgba(245,158,11,.12);
+  background: linear-gradient(180deg, rgba(245,158,11,.12), rgba(239,68,68,.06));
+}
+
+.service-item.selected .service-tick{
+  color: #065f46;
+  border-color: rgba(16,185,129,.35);
+  background: rgba(16,185,129,.10);
+}
+
   </style>
 </head>
 
@@ -152,8 +306,24 @@
       <div class="row" style="margin-top:12px;">
         <div>
           <label>Dịch vụ (chọn nhiều)</label>
-          <select id="service" multiple></select>
-          <div class="hint">Mẹo: giữ Ctrl (Windows) / Cmd (Mac) để chọn nhiều dòng.</div>
+
+<!-- Giữ select ẩn để app.js vẫn hoạt động (lưu ID service) -->
+<select id="service" multiple style="display:none;"></select>
+
+<!-- UI checklist đẹp hơn -->
+<div class="service-panel">
+  <div class="service-toolbar">
+    <span class="service-title">Chọn dịch vụ</span>
+    <span id="serviceCount" class="service-count">0 đã chọn</span>
+  </div>
+
+  <div id="serviceChips" class="service-chips"></div>
+
+  <div id="serviceList" class="service-list"></div>
+
+  <div class="hint">Chạm để chọn/bỏ chọn. (Không cần Ctrl/Cmd)</div>
+</div>
+
         </div>
         <div>
           <label>Ngày</label>
