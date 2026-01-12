@@ -145,6 +145,9 @@
 
     const elService = $("service"); // multiple select
     const elDate = $("date");
+    const elServiceList = $("serviceList");
+    const elServiceChips = $("serviceChips");
+    const elServiceCount = $("serviceCount");
     const elSlots = $("slots");
     const elFullName = $("fullName");
     const elPhone = $("phone");
@@ -154,11 +157,89 @@
 
     let services = [];
     let selectedTime = null; // null = "Không chọn giờ"
+    let selectedServiceIds = new Set();
+
+function syncHiddenSelect() {
+  // cập nhật select ẩn để giữ logic cũ nếu cần
+  Array.from(elService.options).forEach(opt => {
+    opt.selected = selectedServiceIds.has(Number(opt.value));
+  });
+}
+
+function renderServiceChips() {
+  if (!elServiceChips) return;
+  elServiceChips.innerHTML = "";
+
+  const selected = services.filter(s => selectedServiceIds.has(Number(s.id)));
+  selected.forEach(svc => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.innerHTML = `
+      ${svc.name}
+      <button type="button" aria-label="Bỏ chọn">×</button>
+    `;
+    chip.querySelector("button").addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectedServiceIds.delete(Number(svc.id));
+      syncHiddenSelect();
+      renderServicesList();
+      renderServiceChips();
+      refreshSlots();
+    });
+    elServiceChips.appendChild(chip);
+  });
+
+  if (elServiceCount) elServiceCount.textContent = `${selected.length} đã chọn`;
+}
+
+function renderServicesList() {
+  if (!elServiceList) return;
+  elServiceList.innerHTML = "";
+
+  services.forEach((svc) => {
+    const div = document.createElement("div");
+    const isSel = selectedServiceIds.has(Number(svc.id));
+    div.className = "service-item" + (isSel ? " selected" : "");
+
+    // meta: ẩn duration/price nếu null
+    const metaParts = [];
+    if (svc.duration_minutes !== null && svc.duration_minutes !== undefined) metaParts.push(`${svc.duration_minutes}p`);
+    if (svc.price_vnd !== null && svc.price_vnd !== undefined) metaParts.push(`${Number(svc.price_vnd).toLocaleString("vi-VN")}đ`);
+    const meta = metaParts.join(" • ");
+
+    div.innerHTML = `
+      <div class="service-left">
+        <div class="service-name">${svc.name}</div>
+        <div class="service-meta">${meta || " "}</div>
+      </div>
+      <div class="service-tick">✓</div>
+    `;
+
+    div.addEventListener("click", () => {
+      const id = Number(svc.id);
+      if (selectedServiceIds.has(id)) selectedServiceIds.delete(id);
+      else selectedServiceIds.add(id);
+
+      syncHiddenSelect();
+      renderServicesList();
+      renderServiceChips();
+      refreshSlots();
+    });
+
+    elServiceList.appendChild(div);
+  });
+
+  if (elServiceCount) {
+    elServiceCount.textContent = `${selectedServiceIds.size} đã chọn`;
+  }
+}
+
     const allSlots = buildSlots();
 
     function getSelectedServiceIds() {
-      return Array.from(elService.selectedOptions || []).map((o) => Number(o.value)).filter(Boolean);
-    }
+  return Array.from(selectedServiceIds);
+}
+
 
     function getSelectedServices() {
       const ids = new Set(getSelectedServiceIds());
@@ -187,6 +268,10 @@
         opt.textContent = formatServiceLabel(svc);
         elService.appendChild(opt);
       });
+      // Render checklist UI
+renderServicesList();
+renderServiceChips();
+
     }
 
     async function loadBookedTimesForDate(ymd) {
