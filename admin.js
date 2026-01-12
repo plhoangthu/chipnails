@@ -211,12 +211,53 @@ btnLoad?.addEventListener("click", async () => {
   for (const b of bookings) {
     const c = custMap.get(b.id) || {};
     const time = fmtTimeLocal(b.start_at);
+// Tách note dạng: "CẮT DA, SƠN GEL | [KHÔNG CHỌN GIỜ] | Đắp sơn"
+function splitServiceAndNote(rawNote) {
+  const note = (rawNote || "").trim();
+  if (!note) return { serviceFromNote: null, cleanNote: "" };
+
+  // Ưu tiên format dùng dấu |
+  if (note.includes("|")) {
+    const parts = note.split("|").map(s => s.trim()).filter(Boolean);
+
+    const serviceFromNote = parts[0] || null;
+
+    // Bỏ tag không chọn giờ khỏi ghi chú
+    const rest = parts.slice(1).filter(p => !/^\[?\s*không chọn giờ\s*\]?$/i.test(p));
+    const cleanNote = rest.join(" | ").trim();
+
+    return { serviceFromNote, cleanNote };
+  }
+
+  // Nếu format "Dịch vụ: ..." theo dòng
+  const lines = note.split(/\r?\n/).map(s => s.trim());
+  const svcLine = lines.find(l => /^dịch vụ\s*:/i.test(l));
+  if (svcLine) {
+    const serviceFromNote = svcLine.replace(/^dịch vụ\s*:\s*/i, "").trim() || null;
+    const cleanNote = lines.filter(l => !/^dịch vụ\s*:/i.test(l)).join("\n").trim();
+    return { serviceFromNote, cleanNote };
+  }
+
+  // Không có pattern -> coi như chỉ là ghi chú
+  return { serviceFromNote: null, cleanNote: note };
+}
 
     // Dịch vụ: CHỈ lấy từ bảng services (service_id), KHÔNG lấy từ note nữa
-const serviceName = serviceMap.get(b.service_id) || (b.service_id ? `#${b.service_id}` : "");
+//const serviceName = serviceMap.get(b.service_id) || (b.service_id ? `#${b.service_id}` : "");
 
 // Ghi chú: giữ nguyên note khách nhập (không tự cắt dòng "Dịch vụ:" nữa)
-const clean = (b.note || "").trim();
+//const clean = (b.note || "").trim();
+// Tách dịch vụ & ghi chú từ note (vì bạn đang lưu chung bằng dấu |)
+const { serviceFromNote, cleanNote } = splitServiceAndNote(b.note);
+
+// Ưu tiên hiển thị nhiều dịch vụ từ note, nếu không có thì fallback service_id
+const serviceName =
+  serviceFromNote ||
+  serviceMap.get(b.service_id) ||
+  (b.service_id ? `#${b.service_id}` : "");
+
+// Ghi chú: chỉ phần ghi chú sau khi đã tách
+const clean = cleanNote;
 
 
     tbody.insertAdjacentHTML(
