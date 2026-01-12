@@ -3,212 +3,128 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ĐẶT LỊCH CHIP NAILS TẾT 2026</title>
+  <title>Đặt lịch Nails</title>
 
   <style>
-    :root{
-      --red:#dc2626;
-      --gold:#f59e0b;
-      --ink:#111827;
-      --muted:#6b7280;
-      --bg1:#fff7ed;
-      --bg2:#f6f7fb;
-      --card:#ffffff;
-      --border:#d6d9e0;
+    body { font-family: system-ui, Arial; margin: 0; background:#f6f7fb; }
+    .wrap { max-width: 720px; margin: 24px auto; padding: 16px; }
+    .card { background:#fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    label { display:block; font-size: 13px; color:#333; margin-bottom: 6px; }
+    input, select, textarea, button {
+      width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid #d6d9e0; font-size: 15px; background:#fff;
     }
 
-    body{
-      font-family: system-ui, Arial;
-      margin:0;
-      background: linear-gradient(180deg, var(--bg1), var(--bg2));
-      overflow-x:hidden;
+    /* multi select đẹp hơn */
+    select[multiple]{
+      min-height: 140px;
+      padding: 8px;
+    }
+    .hint { color:#6b7280; font-size:12px; margin-top:6px; }
+
+    textarea { min-height: 86px; resize: vertical; }
+    button { border: 0; cursor: pointer; font-weight: 650; padding: 12px; }
+    .btn { background: #111827; color:#fff; }
+    .muted { color:#6b7280; font-size: 13px; }
+
+    .slots { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+    .slot { padding: 10px; border-radius: 12px; border:1px solid #d6d9e0; background:#fff; cursor:pointer; text-align:center; }
+    .slot[aria-disabled="true"]{ opacity:.45; cursor:not-allowed; }
+    .slot.selected{ outline: 3px solid rgba(17,24,39,.2); border-color:#111827; }
+
+    @media (max-width: 560px){
+      .row{ grid-template-columns: 1fr; }
+      .slots{ grid-template-columns: repeat(3, 1fr); }
     }
 
-    .wrap{
-      max-width:720px;
-      margin:24px auto;
-      padding:16px;
-      position:relative;
-      z-index:2;
+    /* ===== POPUP MODAL ===== */
+    .modal-backdrop{
+      position: fixed; inset: 0;
+      background: rgba(17,24,39,.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 16px;
     }
-
-    .card{
-      background:var(--card);
-      border-radius:18px;
-      padding:18px;
-      box-shadow:0 10px 28px rgba(0,0,0,.08);
-      position:relative;
-      overflow:hidden;
+    .modal{
+      width: 100%;
+      max-width: 520px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.25);
+      overflow: hidden;
     }
-
-    /* ===== HEADER ===== */
-    .page-title{
-      text-align:center;
-      font-weight:900;
-      font-size:30px;
-      letter-spacing:.6px;
-      margin:2px 0 6px;
-      background:linear-gradient(90deg,var(--red),var(--gold));
-      -webkit-background-clip:text;
-      -webkit-text-fill-color:transparent;
+    .modal-header{
+      display:flex; align-items:center; justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid #eef0f4;
+    }
+    .modal-title{
+      font-weight: 800;
+      font-size: 14px;
+      margin: 0;
+    }
+    .modal-close{
+      border: none;
+      background: transparent;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 6px;
+      color: #6b7280;
+    }
+    .modal-body{
+      padding: 14px;
+      font-size: 14px;
+      color: #111827;
+      white-space: pre-line;
+    }
+    .modal-actions{
+      padding: 12px 14px;
+      border-top: 1px solid #eef0f4;
       display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-      flex-wrap:wrap;
+      justify-content: flex-end;
+      gap: 10px;
     }
-    .title-icons{
-      -webkit-text-fill-color:initial;
-      background:none;
-      color:#b45309;
-      font-size:22px;
-      filter:drop-shadow(0 2px 2px rgba(0,0,0,.08));
+    .btn-secondary{
+      background:#e5e7eb; color:#111827;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
     }
-    .page-subtitle{
-      text-align:center;
-      font-size:14px;
-      color:var(--muted);
-      margin:0 0 10px;
+    .btn-primary{
+      background:#111827; color:#fff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
     }
-
-    .badge-wrap{
-      display:flex;
-      justify-content:center;
-      gap:8px;
-      flex-wrap:wrap;
-      margin-bottom:16px;
-    }
-    .badge{
-      padding:6px 14px;
-      border-radius:999px;
-      font-size:13px;
-      font-weight:650;
-      border:1px solid transparent;
-      background:#fff;
-    }
-    .badge-warning{
-      background:#fff7ed;
-      color:#c2410c;
-      border-color:#fed7aa;
-    }
-    .badge-success{
-      background:#ecfdf5;
-      color:#047857;
-      border-color:#a7f3d0;
-    }
-
-    .ribbon{
-      position:absolute;
-      top:-10px;
-      right:-40px;
-      transform:rotate(20deg);
-      background:linear-gradient(90deg,var(--red),var(--gold));
-      color:#fff;
-      font-weight:800;
-      font-size:12px;
-      padding:10px 52px;
-      box-shadow:0 10px 22px rgba(0,0,0,.10);
-      user-select:none;
-      pointer-events:none;
-    }
-
-    /* ===== FORM ===== */
-    .row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    label{ display:block; font-size:13px; color:#374151; margin-bottom:6px; font-weight:650; }
-    input,select,textarea,button{
-      width:100%; box-sizing:border-box; padding:11px 12px;
-      border-radius:12px; border:1px solid var(--border);
-      font-size:15px; background:#fff;
-    }
-    textarea{ min-height:86px; resize:vertical; }
-    button{ border:0; cursor:pointer; font-weight:800; padding:14px; font-size:16px; }
-    .btn{
-      background:linear-gradient(90deg,var(--red),var(--gold));
-      color:#fff;
-      position:relative;
-      overflow:hidden;
-    }
-    .btn:active{ transform:scale(.98); }
-    .muted{ color:var(--muted); font-size:13px; }
-
-    /* ===== TIME SLOTS ===== */
-    .slots{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:10px; }
-    .slot{
-      padding:12px 6px; border-radius:14px; border:1px solid var(--border);
-      background:#fff; cursor:pointer; text-align:center; user-select:none; font-weight:700;
-    }
-    .slot[aria-disabled="true"]{ opacity:.40; cursor:not-allowed; }
-    .slot.selected{ border-color:var(--red); box-shadow:0 0 0 3px rgba(220,38,38,.15); }
-
-    /* ===== MESSAGE ===== */
-    #msg{ margin-bottom:10px; }
-    .ok{ background:#ecfdf5; border:1px solid #10b98133; padding:12px; border-radius:12px; }
-    .err{ background:#fef2f2; border:1px solid #ef444433; padding:12px; border-radius:12px; }
-
-    /* ===== MOBILE ===== */
-    @media (max-width:560px){
-      .row{ grid-template-columns:1fr; }
-      .slots{ grid-template-columns:repeat(3,1fr); }
-      .page-title{ font-size:26px; }
-      .title-icons{ font-size:20px; }
-    }
-
-    /* ===== FALLING BLOSSOMS ===== */
-    .blossoms-layer{
-      position:fixed; inset:0; pointer-events:none; z-index:1; overflow:hidden;
-    }
-    .blossom{
-      position:absolute; top:-10vh; left:0; font-size:18px; opacity:.9;
-      filter:drop-shadow(0 2px 2px rgba(0,0,0,.08));
-      animation-name:fall,sway; animation-timing-function:linear,ease-in-out;
-      animation-iteration-count:infinite,infinite; will-change:transform;
-    }
-    @keyframes fall{
-      0%{ transform:translate3d(var(--x),-12vh,0) rotate(0deg); }
-      100%{ transform:translate3d(var(--x),112vh,0) rotate(360deg); }
-    }
-    @keyframes sway{
-      0%,100%{ margin-left:0; } 50%{ margin-left:28px; }
-    }
-    @media (prefers-reduced-motion:reduce){ .blossoms-layer{ display:none; } }
-
-    /* ===== FIREWORKS ===== */
-    .fw{
-      position:fixed; left:0; top:0; width:8px; height:8px; border-radius:50%;
-      pointer-events:none; z-index:5;
-    }
+    .modal-ok{ border-left: 6px solid #10b981; }
+    .modal-err{ border-left: 6px solid #ef4444; }
+    .modal-info{ border-left: 6px solid #3b82f6; }
   </style>
 </head>
 
 <body>
-  <!-- Falling blossoms -->
-  <div class="blossoms-layer" id="blossomsLayer" aria-hidden="true"></div>
-
   <div class="wrap">
     <div class="card">
-      <div class="ribbon">TẾT 2026</div>
+      <h1>Đặt lịch làm Nails</h1>
+      <p class="muted">Chọn dịch vụ, ngày và giờ trống. Sau khi đặt, vui lòng đến đúng giờ.</p>
 
-      <h1 class="page-title">
-        <span class="title-icons">🌸🎆</span>
-        ĐẶT LỊCH TẠI CHIP NAILS DỊP TẾT 2026
-        <span class="title-icons">🎆🌸</span>
-      </h1>
-
-      <p class="page-subtitle">
-        Chọn dịch vụ, ngày và giờ trống. Sau khi đặt, vui lòng đến đúng giờ.
-      </p>
-
-      <div class="badge-wrap">
-        <div class="badge badge-warning">⏰ Có thể trễ tối đa 15 phút</div>
-        <div class="badge badge-success">🎉 Ưu tiên khách đặt sớm</div>
-      </div>
-
-      <div id="msg"></div>
-
-      <div class="row">
+      <!-- Dòng 1: Dịch vụ + Ngày -->
+      <div class="row" style="margin-top:12px;">
         <div>
-          <label>Dịch vụ</label>
-          <select id="service"></select>
+          <label>Dịch vụ (chọn nhiều)</label>
+          <!-- Đổi thành multiple để chọn nhiều dịch vụ -->
+          <select id="service" multiple></select>
+          <div class="hint">Mẹo: giữ Ctrl (Windows) / Cmd (Mac) để chọn nhiều dòng.</div>
         </div>
         <div>
           <label>Ngày</label>
@@ -216,12 +132,14 @@
         </div>
       </div>
 
+      <!-- Chọn giờ -->
       <div style="margin-top:12px;">
         <label>Giờ trống</label>
         <div id="slots" class="slots"></div>
         <div class="muted" style="margin-top:6px;">* Chỉ hiển thị giờ còn trống.</div>
       </div>
 
+      <!-- Thông tin khách -->
       <div class="row" style="margin-top:12px;">
         <div>
           <label>Họ và tên</label>
@@ -233,6 +151,7 @@
         </div>
       </div>
 
+      <!-- Số lượng + ghi chú -->
       <div class="row" style="margin-top:12px;">
         <div>
           <label>Số lượng</label>
@@ -244,85 +163,28 @@
         </div>
       </div>
 
-      <div style="margin-top:16px;">
-        <button id="submit" class="btn">Đặt lịch ngay</button>
+      <div style="margin-top:14px;">
+        <button id="submit" class="btn">Đặt lịch</button>
       </div>
     </div>
   </div>
 
+  <!-- POPUP MODAL -->
+  <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
+    <div id="modalBox" class="modal modal-info" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <div id="modalTitle" class="modal-title">Thông báo</div>
+        <button id="modalClose" class="modal-close" aria-label="Đóng">×</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+      <div class="modal-actions">
+        <button id="modalOk" class="btn-primary">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
-
-  <!-- Falling blossoms -->
-  <script>
-    (function(){
-      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if(reduce) return;
-      const layer = document.getElementById('blossomsLayer');
-      if(!layer) return;
-      const COUNT = 18;
-      const EMOJIS = ['🌸','🌼','✨'];
-      const rand = (a,b)=>Math.random()*(b-a)+a;
-      const pick = (arr)=>arr[Math.floor(Math.random()*arr.length)];
-      for(let i=0;i<COUNT;i++){
-        const b=document.createElement('span');
-        b.className='blossom';
-        b.textContent=pick(EMOJIS);
-        b.style.setProperty('--x', rand(0,100)+'vw');
-        b.style.fontSize=rand(14,22)+'px';
-        b.style.opacity=rand(.55,.95);
-        const fd=rand(8,14), sd=rand(2.5,4.5), d=rand(-14,0);
-        b.style.animationDuration=`${fd}s, ${sd}s`;
-        b.style.animationDelay=`${d}s, ${d}s`;
-        layer.appendChild(b);
-      }
-    })();
-  </script>
-
-  <!-- Fireworks on submit -->
-  <script>
-    (function(){
-      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if(reduce) return;
-
-      const btn = document.getElementById('submit');
-      if(!btn) return;
-
-      const COLORS = ['#dc2626','#f59e0b','#fde68a','#fb7185'];
-
-      function firework(x,y){
-        const N = 22;
-        for(let i=0;i<N;i++){
-          const p=document.createElement('div');
-          p.className='fw';
-          const c=COLORS[Math.floor(Math.random()*COLORS.length)];
-          p.style.background=c;
-          p.style.left=x+'px';
-          p.style.top=y+'px';
-          document.body.appendChild(p);
-
-          const ang=Math.random()*Math.PI*2;
-          const dist=60+Math.random()*60;
-          const dx=Math.cos(ang)*dist;
-          const dy=Math.sin(ang)*dist;
-          const dur=500+Math.random()*400;
-
-          p.animate([
-            { transform:'translate(0,0) scale(1)', opacity:1 },
-            { transform:`translate(${dx}px,${dy}px) scale(.2)`, opacity:0 }
-          ], { duration:dur, easing:'cubic-bezier(.21,.61,.35,1)' });
-
-          setTimeout(()=>p.remove(), dur);
-        }
-      }
-
-      btn.addEventListener('click', ()=>{
-        const r = btn.getBoundingClientRect();
-        const x = r.left + r.width/2;
-        const y = r.top + r.height/2;
-        firework(x,y);
-      });
-    })();
-  </script>
 </body>
 </html>
