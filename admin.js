@@ -212,10 +212,12 @@ btnLoad?.addEventListener("click", async () => {
     const c = custMap.get(b.id) || {};
     const time = fmtTimeLocal(b.start_at);
 
-    const multi = extractServicesFromNote(b.note);
-    const serviceName = multi || serviceMap.get(b.service_id) || `#${b.service_id}`;
+    // Dịch vụ: CHỈ lấy từ bảng services (service_id), KHÔNG lấy từ note nữa
+const serviceName = serviceMap.get(b.service_id) || (b.service_id ? `#${b.service_id}` : "");
 
-    const clean = cleanNote(b.note);
+// Ghi chú: giữ nguyên note khách nhập (không tự cắt dòng "Dịch vụ:" nữa)
+const clean = (b.note || "").trim();
+
 
     tbody.insertAdjacentHTML(
       "beforeend",
