@@ -62,12 +62,23 @@ function clearTable() {
   tbody.innerHTML = "";
 }
 
+//function fmtTimeLocal(iso) {
+ // const d = new Date(iso);
+ // const hh = String(d.getHours()).padStart(2, "0");
+  //const mm = String(d.getMinutes()).padStart(2, "0");
+  //return `${hh}:${mm}`;
+//}
 function fmtTimeLocal(iso) {
   const d = new Date(iso);
+  if (isNaN(d)) return "";
+
+  const date = d.toLocaleDateString("vi-VN");
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
+
+  return `${date} ${hh}:${mm}`;
 }
+
 
 // Nếu note có dòng "Dịch vụ: ..." thì ưu tiên hiển thị nó (nhiều dịch vụ)
 function extractServicesFromNote(note) {
@@ -145,24 +156,29 @@ btnLoad?.addEventListener("click", async () => {
     return;
   }
 
-  const dateStr = elDate?.value;
-  if (!dateStr) {
-    setStatus("Vui lòng chọn ngày.");
-    showPopup("err", "Thiếu thông tin", "Vui lòng chọn ngày.");
-    return;
-  }
+ // const dateStr = elDate?.value;
+  //if (!dateStr) {
+   // setStatus("Vui lòng chọn ngày.");
+    //showPopup("err", "Thiếu thông tin", "Vui lòng chọn ngày.");
+    //return;
+  //}
 
-  const startLocal = new Date(`${dateStr}T00:00:00`);
-  const endLocal = new Date(`${dateStr}T23:59:59`);
-  const startIso = startLocal.toISOString();
-  const endIso = endLocal.toISOString();
+  //const startLocal = new Date(`${dateStr}T00:00:00`);
+  //const endLocal = new Date(`${dateStr}T23:59:59`);
+  //const startIso = startLocal.toISOString();
+  //const endIso = endLocal.toISOString();
 
-  const { data: bookings, error: bErr } = await db
-    .from("bookings")
-    .select("id, start_at, service_id, qty, note")
-    .gte("start_at", startIso)
-    .lte("start_at", endIso)
-    .order("start_at", { ascending: true });
+ // const { data: bookings, error: bErr } = await db
+  //  .from("bookings")
+   // .select("id, start_at, service_id, qty, note")
+    //.gte("start_at", startIso)
+    //.lte("start_at", endIso)
+    //.order("start_at", { ascending: true });
+const { data: bookings, error: bErr } = await db
+  .from("bookings")
+  .select("id, start_at, service_id, qty, note")
+  .order("start_at", { ascending: false }) // mới nhất lên trên
+  .limit(200); // tránh load quá nặng
 
   if (bErr) {
     setStatus("Lỗi load bookings: " + bErr.message);
