@@ -135,7 +135,9 @@ function rowHtml({ id, isNew24, timeText, service, qty, name, phone, note }) {
       <td>${escapeHtml(note || "").replace(/\n/g, "<br/>")}</td>
       <td>
         <div class="actions">
-          <button class="actionBtn danger" data-action="delete" data-id="${id}">Xóa</button>
+      //    <button class="actionBtn danger" data-action="delete" data-id="${id}">Xóa</button>
+      <button class="actionBtn danger" data-action="cancel" data-id="${id}">Hủy</button>
+
         </div>
       </td>
     </tr>
@@ -339,7 +341,7 @@ async function loadBookings() {
 
 // Bind delete buttons
 function bindRowActions() {
-  tbody.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+  tbody.querySelectorAll('button[data-action="cancel"]').forEach(btn => {
     btn.addEventListener("click", async () => {
       const bookingId = btn.getAttribute("data-id");
       if (!bookingId) return;
@@ -351,13 +353,13 @@ function bindRowActions() {
 
       showPopup(
         "err",
-        "Xác nhận xóa lịch",
+        "Xác nhận hủy lịch",
         `Bạn chắc chắn muốn xóa booking này?\n\nKhách: ${name}\nSĐT: ${phone}\n\nHành động này không thể hoàn tác.`,
         {
-          okText: "Xóa",
+          okText: "hủy lich",
           okClass: "danger",
           onOk: async () => {
-            await deleteBooking(bookingId);
+            await cancelBooking(bookingId);
           }
         }
       );
@@ -365,7 +367,7 @@ function bindRowActions() {
   });
 }
 
-async function deleteBooking(bookingId) {
+/*async function deleteBooking(bookingId) {
   try {
     setStatus("Đang xóa booking...");
 
@@ -399,4 +401,32 @@ async function deleteBooking(bookingId) {
     showPopup("err", "Lỗi", e?.message || String(e));
     await loadBookings();
   }
+}*/
+
+
+async function cancelBooking(bookingId) {
+  try {
+    setStatus("Đang hủy lịch...");
+
+    const { error } = await db
+      .from("bookings")
+      .update({
+        status: "canceled",
+        canceled_at: new Date().toISOString(),
+      })
+      .eq("id", bookingId);
+
+    if (error) {
+      showPopup("err", "Hủy lịch thất bại", error.message);
+      await loadBookings();
+      return;
+    }
+
+    showPopup("ok", "Đã hủy", "Booking đã được chuyển sang trạng thái HỦY.");
+    await loadBookings();
+  } catch (e) {
+    showPopup("err", "Lỗi", e?.message || String(e));
+    await loadBookings();
+  }
 }
+
