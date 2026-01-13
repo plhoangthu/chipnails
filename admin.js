@@ -1,6 +1,9 @@
 /* admin.js - Chip Nails (Supabase + Cloudflare Pages)
-   Login: email + password
-   Load bookings by date, join services + customers
+   Upgraded:
+   - Load all bookings (optional date filter)
+   - Search by name/phone
+   - Delete booking (customer cancel) with confirm modal
+   - Highlight bookings created within 24h (fallback: start_at if no created_at)
 */
 
 const { createClient } = supabase;
@@ -18,10 +21,13 @@ const btnLogout = document.getElementById("logoutBtn");
 
 const elDate = document.getElementById("dateInput");
 const btnLoad = document.getElementById("loadBtn");
+const btnClearFilter = document.getElementById("clearFilterBtn");
+const elSearch = document.getElementById("searchInput");
+
 const tbody = document.getElementById("bookingBody");
 
-// Popup
-function showPopup(type, title, text) {
+// Modal
+function showPopup(type, title, text, opts = {}) {
   const backdrop = document.getElementById("modalBackdrop");
   const box = document.getElementById("modalBox");
   const elTitle = document.getElementById("modalTitle");
@@ -35,7 +41,8 @@ function showPopup(type, title, text) {
   }
 
   box.classList.remove("ok", "err");
-  box.classList.add(type === "ok" ? "ok" : type === "err" ? "err" : "");
+  if (type === "ok") box.classList.add("ok");
+  if (type === "err") box.classList.add("err");
 
   elTitle.textContent = title || "Thông báo";
   body.textContent = text || "";
@@ -48,67 +55,95 @@ function showPopup(type, title, text) {
     backdrop.setAttribute("aria-hidden", "true");
   };
 
-  btnOk.onclick = close;
   btnClose.onclick = close;
   backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
   window.onkeydown = (e) => { if (e.key === "Escape") close(); };
+
+  // OK handler (optional)
+  btnOk.textContent = opts.okText || "OK";
+  btnOk.className = opts.okClass || "primary";
+  btnOk.onclick = () => {
+    close();
+    if (typeof opts.onOk === "function") opts.onOk();
+  };
 }
 
 function setStatus(text) {
-  tbody.innerHTML = `<tr><td colspan="6" style="color:#555;">${text}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" style="color:#6b7280;">${text}</td></tr>`;
 }
+function clearTable() { tbody.innerHTML = ""; }
 
-function clearTable() {
-  tbody.innerHTML = "";
-}
+function pad2(n) { return String(n).padStart(2, "0"); }
 
-//function fmtTimeLocal(iso) {
- // const d = new Date(iso);
- // const hh = String(d.getHours()).padStart(2, "0");
-  //const mm = String(d.getMinutes()).padStart(2, "0");
-  //return `${hh}:${mm}`;
-//}
-function fmtTimeLocal(iso) {
+function fmtDateTimeLocal(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return "";
-
   const date = d.toLocaleDateString("vi-VN");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-
-  return `${date} ${hh}:${mm}`;
+  const hh = pad2(d.getHours());
+  const mm = pad2(d.getMinutes());
+  const t = `${hh}:${mm}`;
+  return t === "00:00" ? `${date} (Không chọn giờ)` : `${date} ${t}`;
 }
 
+// Tách note dạng: "CẮT DA, SƠN GEL | [KHÔNG CHỌN GIỜ] | Ghi chú..."
+function splitServiceAndNote(rawNote) {
+  const note = (rawNote || "").trim();
+  if (!note) return { serviceFromNote: null, cleanNote: "" };
 
-// Nếu note có dòng "Dịch vụ: ..." thì ưu tiên hiển thị nó (nhiều dịch vụ)
-function extractServicesFromNote(note) {
-  if (!note) return null;
-  const lines = String(note).split(/\r?\n/);
-  const line = lines.find(l => l.trim().toLowerCase().startsWith("dịch vụ:"));
-  if (!line) return null;
-  return line.replace(/^dịch vụ:\s*/i, "").trim() || null;
+  if (note.includes("|")) {
+    const parts = note.split("|").map(s => s.trim()).filter(Boolean);
+    const serviceFromNote = parts[0] || null;
+
+    const rest = parts
+      .slice(1)
+      .filter(p => !/^\[?\s*không chọn giờ\s*\]?$/i.test(p));
+    const cleanNote = rest.join(" | ").trim();
+
+    return { serviceFromNote, cleanNote };
+  }
+
+  // format "Dịch vụ:" theo dòng (nếu có)
+  const lines = note.split(/\r?\n/).map(s => s.trim());
+  const svcLine = lines.find(l => /^dịch vụ\s*:/i.test(l));
+  if (svcLine) {
+    const serviceFromNote = svcLine.replace(/^dịch vụ\s*:\s*/i, "").trim() || null;
+    const cleanNote = lines.filter(l => !/^dịch vụ\s*:/i.test(l)).join("\n").trim();
+    return { serviceFromNote, cleanNote };
+  }
+
+  return { serviceFromNote: null, cleanNote: note };
 }
 
-function cleanNote(note) {
-  if (!note) return "";
-  const lines = String(note).split(/\r?\n/);
-  // bỏ dòng "Dịch vụ:" ra khỏi ghi chú để note gọn
-  const filtered = lines.filter(l => !l.trim().toLowerCase().startsWith("dịch vụ:"));
-  return filtered.join("\n").trim();
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function rowHtml({ time, service, qty, name, phone, note }) {
+function rowHtml({ id, isNew24, timeText, service, qty, name, phone, note }) {
+  const newBadge = isNew24 ? `<span class="badgeNew">Mới 24h</span>` : "";
   return `
-    <tr>
-      <td>${time || ""}</td>
-      <td>${service || ""}</td>
-      <td>${qty ?? ""}</td>
-      <td>${name || ""}</td>
-      <td>${phone || ""}</td>
-      <td>${(note || "").replace(/\n/g, "<br/>")}</td>
+    <tr class="${isNew24 ? "new24" : ""}" data-id="${id}" data-name="${escapeHtml(name)}" data-phone="${escapeHtml(phone)}">
+      <td>${escapeHtml(timeText)} ${newBadge}</td>
+      <td>${escapeHtml(service || "")}</td>
+      <td>${escapeHtml(qty ?? "")}</td>
+      <td>${escapeHtml(name || "")}</td>
+      <td>${escapeHtml(phone || "")}</td>
+      <td>${escapeHtml(note || "").replace(/\n/g, "<br/>")}</td>
+      <td>
+        <div class="actions">
+          <button class="actionBtn danger" data-action="delete" data-id="${id}">Xóa</button>
+        </div>
+      </td>
     </tr>
   `;
 }
+
+// Cache loaded data (for search filter)
+let cachedRows = []; // { id, name, phone, trHtml }
 
 // Hint current user
 async function showCurrentUserHint() {
@@ -145,9 +180,35 @@ btnLogout?.addEventListener("click", async () => {
   showPopup("ok", "Đã đăng xuất", "Bạn đã đăng xuất.");
 });
 
-// Load lịch theo ngày
-btnLoad?.addEventListener("click", async () => {
+// Optional: clear filter
+btnClearFilter?.addEventListener("click", async () => {
+  if (elDate) elDate.value = "";
+  if (elSearch) elSearch.value = "";
+  await loadBookings();
+});
+
+// Search filter on cached rows
+elSearch?.addEventListener("input", () => {
+  const q = (elSearch.value || "").trim().toLowerCase();
+  if (!q) {
+    tbody.innerHTML = cachedRows.map(r => r.trHtml).join("");
+    bindRowActions();
+    return;
+  }
+  const filtered = cachedRows.filter(r =>
+    (r.name || "").toLowerCase().includes(q) ||
+    (r.phone || "").toLowerCase().includes(q)
+  );
+  tbody.innerHTML = filtered.map(r => r.trHtml).join("") || `<tr><td colspan="7" class="muted">Không tìm thấy.</td></tr>`;
+  bindRowActions();
+});
+
+// Load bookings
+btnLoad?.addEventListener("click", loadBookings);
+
+async function loadBookings() {
   clearTable();
+  setStatus("Đang tải danh sách...");
 
   const { data: userData } = await db.auth.getUser();
   if (!userData?.user) {
@@ -156,29 +217,22 @@ btnLoad?.addEventListener("click", async () => {
     return;
   }
 
- // const dateStr = elDate?.value;
-  //if (!dateStr) {
-   // setStatus("Vui lòng chọn ngày.");
-    //showPopup("err", "Thiếu thông tin", "Vui lòng chọn ngày.");
-    //return;
-  //}
+  // Query bookings with optional date filter
+  let query = db
+    .from("bookings")
+    // cố gắng lấy created_at nếu có
+    .select("id, start_at, created_at, service_id, qty, note")
+    .order("start_at", { ascending: false })
+    .limit(300);
 
-  //const startLocal = new Date(`${dateStr}T00:00:00`);
-  //const endLocal = new Date(`${dateStr}T23:59:59`);
-  //const startIso = startLocal.toISOString();
-  //const endIso = endLocal.toISOString();
+  const dateStr = (elDate?.value || "").trim();
+  if (dateStr) {
+    const startLocal = new Date(`${dateStr}T00:00:00`);
+    const endLocal = new Date(`${dateStr}T23:59:59`);
+    query = query.gte("start_at", startLocal.toISOString()).lte("start_at", endLocal.toISOString());
+  }
 
- // const { data: bookings, error: bErr } = await db
-  //  .from("bookings")
-   // .select("id, start_at, service_id, qty, note")
-    //.gte("start_at", startIso)
-    //.lte("start_at", endIso)
-    //.order("start_at", { ascending: true });
-const { data: bookings, error: bErr } = await db
-  .from("bookings")
-  .select("id, start_at, service_id, qty, note")
-  .order("start_at", { ascending: false }) // mới nhất lên trên
-  .limit(200); // tránh load quá nặng
+  const { data: bookings, error: bErr } = await query;
 
   if (bErr) {
     setStatus("Lỗi load bookings: " + bErr.message);
@@ -187,11 +241,13 @@ const { data: bookings, error: bErr } = await db
   }
 
   if (!bookings || bookings.length === 0) {
-    setStatus("Không có lịch cho ngày này.");
+    setStatus("Không có lịch.");
+    cachedRows = [];
     return;
   }
 
-  const bookingIds = bookings.map((b) => b.id);
+  // Load customers for these bookings
+  const bookingIds = bookings.map(b => b.id);
 
   const { data: customers, error: cErr } = await db
     .from("booking_customers")
@@ -205,12 +261,12 @@ const { data: bookings, error: bErr } = await db
   }
 
   const custMap = new Map();
-  (customers || []).forEach((c) => custMap.set(c.booking_id, c));
+  (customers || []).forEach(c => custMap.set(c.booking_id, c));
 
-  const serviceIds = [...new Set(bookings.map((b) => b.service_id).filter(Boolean))];
-  let serviceMap = new Map();
-
-  if (serviceIds.length > 0) {
+  // Load services map
+  const serviceIds = [...new Set(bookings.map(b => b.service_id).filter(Boolean))];
+  const serviceMap = new Map();
+  if (serviceIds.length) {
     const { data: svcs, error: sErr } = await db
       .from("services")
       .select("id, name")
@@ -221,71 +277,126 @@ const { data: bookings, error: bErr } = await db
       showPopup("err", "Lỗi tải dịch vụ", sErr.message);
       return;
     }
-    (svcs || []).forEach((s) => serviceMap.set(s.id, s.name));
+    (svcs || []).forEach(s => serviceMap.set(s.id, s.name));
   }
+
+  // Build rows
+  const now = Date.now();
+  cachedRows = [];
 
   for (const b of bookings) {
     const c = custMap.get(b.id) || {};
-    const time = fmtTimeLocal(b.start_at);
-// Tách note dạng: "CẮT DA, SƠN GEL | [KHÔNG CHỌN GIỜ] | Đắp sơn"
-function splitServiceAndNote(rawNote) {
-  const note = (rawNote || "").trim();
-  if (!note) return { serviceFromNote: null, cleanNote: "" };
+    const timeText = fmtDateTimeLocal(b.start_at);
 
-  // Ưu tiên format dùng dấu |
-  if (note.includes("|")) {
-    const parts = note.split("|").map(s => s.trim()).filter(Boolean);
+    // Tách note để dịch vụ nằm đúng cột, ghi chú nằm đúng cột
+    const { serviceFromNote, cleanNote } = splitServiceAndNote(b.note);
 
-    const serviceFromNote = parts[0] || null;
+    const serviceName =
+      serviceFromNote ||
+      serviceMap.get(b.service_id) ||
+      (b.service_id ? `#${b.service_id}` : "");
 
-    // Bỏ tag không chọn giờ khỏi ghi chú
-    const rest = parts.slice(1).filter(p => !/^\[?\s*không chọn giờ\s*\]?$/i.test(p));
-    const cleanNote = rest.join(" | ").trim();
+    const noteText = cleanNote || "";
 
-    return { serviceFromNote, cleanNote };
+    // Highlight mới 24h: ưu tiên created_at nếu có, fallback start_at
+    const createdIso = b.created_at || b.start_at;
+    const createdMs = createdIso ? new Date(createdIso).getTime() : 0;
+    const isNew24 = createdMs ? (now - createdMs <= 24 * 60 * 60 * 1000) : false;
+
+    const trHtml = rowHtml({
+      id: b.id,
+      isNew24,
+      timeText,
+      service: serviceName,
+      qty: b.qty,
+      name: c.full_name || "",
+      phone: c.phone || "",
+      note: noteText,
+    });
+
+    cachedRows.push({
+      id: b.id,
+      name: c.full_name || "",
+      phone: c.phone || "",
+      trHtml
+    });
   }
 
-  // Nếu format "Dịch vụ: ..." theo dòng
-  const lines = note.split(/\r?\n/).map(s => s.trim());
-  const svcLine = lines.find(l => /^dịch vụ\s*:/i.test(l));
-  if (svcLine) {
-    const serviceFromNote = svcLine.replace(/^dịch vụ\s*:\s*/i, "").trim() || null;
-    const cleanNote = lines.filter(l => !/^dịch vụ\s*:/i.test(l)).join("\n").trim();
-    return { serviceFromNote, cleanNote };
+  // Apply search filter immediately if user typed something
+  const q = (elSearch?.value || "").trim().toLowerCase();
+  if (q) {
+    const filtered = cachedRows.filter(r =>
+      (r.name || "").toLowerCase().includes(q) ||
+      (r.phone || "").toLowerCase().includes(q)
+    );
+    tbody.innerHTML = filtered.map(r => r.trHtml).join("") || `<tr><td colspan="7" class="muted">Không tìm thấy.</td></tr>`;
+  } else {
+    tbody.innerHTML = cachedRows.map(r => r.trHtml).join("");
   }
 
-  // Không có pattern -> coi như chỉ là ghi chú
-  return { serviceFromNote: null, cleanNote: note };
+  bindRowActions();
 }
 
-    // Dịch vụ: CHỈ lấy từ bảng services (service_id), KHÔNG lấy từ note nữa
-//const serviceName = serviceMap.get(b.service_id) || (b.service_id ? `#${b.service_id}` : "");
+// Bind delete buttons
+function bindRowActions() {
+  tbody.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const bookingId = btn.getAttribute("data-id");
+      if (!bookingId) return;
 
-// Ghi chú: giữ nguyên note khách nhập (không tự cắt dòng "Dịch vụ:" nữa)
-//const clean = (b.note || "").trim();
-// Tách dịch vụ & ghi chú từ note (vì bạn đang lưu chung bằng dấu |)
-const { serviceFromNote, cleanNote } = splitServiceAndNote(b.note);
+      // find row info for display
+      const tr = tbody.querySelector(`tr[data-id="${bookingId}"]`);
+      const name = tr?.getAttribute("data-name") || "";
+      const phone = tr?.getAttribute("data-phone") || "";
 
-// Ưu tiên hiển thị nhiều dịch vụ từ note, nếu không có thì fallback service_id
-const serviceName =
-  serviceFromNote ||
-  serviceMap.get(b.service_id) ||
-  (b.service_id ? `#${b.service_id}` : "");
+      showPopup(
+        "err",
+        "Xác nhận xóa lịch",
+        `Bạn chắc chắn muốn xóa booking này?\n\nKhách: ${name}\nSĐT: ${phone}\n\nHành động này không thể hoàn tác.`,
+        {
+          okText: "Xóa",
+          okClass: "danger",
+          onOk: async () => {
+            await deleteBooking(bookingId);
+          }
+        }
+      );
+    });
+  });
+}
 
-// Ghi chú: chỉ phần ghi chú sau khi đã tách
-const clean = cleanNote;
+async function deleteBooking(bookingId) {
+  try {
+    setStatus("Đang xóa booking...");
 
+    // 1) Xóa customer trước (tránh FK)
+    const { error: cDelErr } = await db
+      .from("booking_customers")
+      .delete()
+      .eq("booking_id", bookingId);
 
-    tbody.insertAdjacentHTML(
-      "beforeend",
-      rowHtml({
-        time,
-        service: serviceName,
-        qty: b.qty,
-        name: c.full_name || "",
-        phone: c.phone || "",
-        note: clean || "",
-      })
-    );
+    if (cDelErr) {
+      showPopup("err", "Xóa khách thất bại", cDelErr.message);
+      await loadBookings();
+      return;
+    }
+
+    // 2) Xóa booking
+    const { error: bDelErr } = await db
+      .from("bookings")
+      .delete()
+      .eq("id", bookingId);
+
+    if (bDelErr) {
+      showPopup("err", "Xóa booking thất bại", bDelErr.message);
+      await loadBookings();
+      return;
+    }
+
+    showPopup("ok", "Đã xóa", "Booking đã được xóa khỏi hệ thống.");
+    await loadBookings();
+  } catch (e) {
+    showPopup("err", "Lỗi", e?.message || String(e));
+    await loadBookings();
   }
-});
+}
