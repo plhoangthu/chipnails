@@ -9,8 +9,8 @@
 
   // Business hours
   const OPEN_HOUR = 8;
-  const CLOSE_HOUR = 21;
-  const STEP_MINUTES = 30;
+  const CLOSE_HOUR = 22;
+  const STEP_MINUTES = 60;
 
   // ====== Helpers ======
   const $ = (id) => document.getElementById(id);
